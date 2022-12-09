@@ -27,14 +27,20 @@ class FieldMeta(type):
 
 class Field(metaclass=FieldMeta):
     def __init__(self, type_: type, nullable: bool = False):
-        if type_ not in FIELD_MAPPING:
-            raise TypeError(f"{type_} is not supported.")
+        from .base import Model # TODO: Find a way to avoid this import
 
         self.type: type = type_
         self.nullable: bool = nullable
 
+        if issubclass(type_, Model):
+            self._field = ForeignKeyField
+        elif type_ not in FIELD_MAPPING:
+            raise TypeError(f"{type_} is not supported.")
+        else:
+            self._field = FIELD_MAPPING[self.type]
+
     def __call__(self, **kwargs):
-        return FIELD_MAPPING[self.type](
+        return self._field(
             python_type=self.type, nullable=self.nullable, **kwargs
         )
 
@@ -53,6 +59,10 @@ class StringField(BaseField):
 
 
 class IntegerField(BaseField):
+    pass
+
+
+class ForeignKeyField(BaseField):
     pass
 
 

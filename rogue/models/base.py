@@ -12,33 +12,42 @@ class ModelMeta(type):
     ):
         instance = super().__new__(cls, name, bases, namespace, **kwds)
 
-        if __annotations__ := namespace.get("__annotations__"):
-            pk_fields = []
-            for name, obj in __annotations__.items():
-                if obj is Field:
-                    raise TypeError(
-                        "Field must be used with type hinting. For example, call it like so: Field[str]."
-                    )
-                if isinstance(obj, Field):
-                    obj = obj()
-                if isinstance(obj, BaseField) and name in namespace:
-                    obj.default = namespace[name]
-                    setattr(instance, name, obj)
-                if obj.is_pk:
-                    pk_fields.append(obj)
+        if not (__annotations__ := namespace.get("__annotations__")):
+            return instance
 
-            if not pk_fields:
-                instance.id = IntegerField(primary_key=True)
+        pk_fields = []
+        for name, obj in __annotations__.items():
+            if obj is Field:
+                raise TypeError(
+                    "Field must be used with type hinting. For example, call it like so: Field[str]."
+                )
+            if isinstance(obj, Field):
+                obj = obj()
+            if isinstance(obj, BaseField) and name in namespace:
+                obj.default = namespace[name]
+            setattr(instance, name, obj)
+
+            if obj.is_pk:
+                pk_fields.append(obj)
+
+        if not pk_fields:
+            instance.id = IntegerField(primary_key=True)
 
         return instance
 
 
 class Model(metaclass=ModelMeta):
-    test: Field[str] = "test"
-
     @property
     def fields(self):
-        print(self.__class__.__dict__)
+        return{field_name: field for field_name, field in self.__class__.__dict__.items() if isinstance(field, BaseField)}
 
 
-print(Model().fields)
+class TestModel(Model):
+    pass
+
+
+class TestModel2(Model):
+    foreign: Field[TestModel]
+
+
+print(TestModel2().fields)
