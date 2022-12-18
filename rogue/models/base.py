@@ -39,15 +39,8 @@ class ModelMeta(type):
 class Model(metaclass=ModelMeta):
     @property
     def fields(self):
-        return{field_name: field for field_name, field in self.__class__.__dict__.items() if isinstance(field, BaseField)}
-
-
-class TestModel(Model):
-    pass
-
-
-class TestModel2(Model):
-    foreign: Field[TestModel]
-
-
-print(TestModel2().fields)
+        return {
+            field_name: field
+            for field_name, field in self.__class__.__dict__.items()
+            if isinstance(field, BaseField)
+        }
