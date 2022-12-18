@@ -1,0 +1,2 @@
+class NotAKnownField(Exception):
+    pass

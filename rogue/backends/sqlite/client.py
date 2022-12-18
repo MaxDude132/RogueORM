@@ -1,4 +1,4 @@
-from backends.base import BaseDatabaseClient
+from ..base import BaseDatabaseClient
 import sqlite3
 
 
@@ -11,7 +11,8 @@ class DatabaseClient(BaseDatabaseClient):
 
     def execute(self, statement, *args):
         connection = self.get_connection()
-        data = connection.execute(statement, args)
+        cursor = connection.cursor()
+        data = cursor.execute(statement, args)
         connection.commit()
 
         return data
