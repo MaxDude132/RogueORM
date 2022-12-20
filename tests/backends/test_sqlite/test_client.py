@@ -14,16 +14,16 @@ class DatabaseClientTestCase(TestCase):
         self.assertIsInstance(connection, SqliteConnection)
 
     def test_execute(self):
-        statement = "CREATE TABLE test_table (test_column integer PRIMARY KEY);"
+        statement = "CREATE TABLE test_client (test_column integer PRIMARY KEY);"
         response = self.database_client.execute(statement)
         self.assertIsInstance(response, SqliteCursor)
 
         value = 25
-        statement = "INSERT INTO test_table (test_column) VALUES(?)"
+        statement = "INSERT INTO test_client (test_column) VALUES(?)"
         response = self.database_client.execute(statement, value)
         self.assertIsInstance(response, SqliteCursor)
 
-        statement = "SELECT * FROM test_table;"
+        statement = "SELECT * FROM test_client;"
         response = self.database_client.execute(statement)
         self.assertIsInstance(response, SqliteCursor)
 

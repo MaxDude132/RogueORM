@@ -1,6 +1,7 @@
+from copy import deepcopy
 from typing import get_args
 
-from rogue.fetchers import Fetcher
+from .errors import DataNotFetchedException
 
 
 UNKNOWN_VALUE = "__UNKNOWN_VALUE__"
@@ -16,10 +17,10 @@ class FieldMeta(type):
             item = item[0]
 
         args = get_args(item)
-        nullable = None in args
+        nullable = type(None) in args
         assert (
-            len(args) <= 2 or len(args) == 2 and not nullable
-        ), "Only union between a type and None is accepted."
+            len(args) < 2 or len(args) == 2 and nullable
+        ), f"Only union between a type and None is accepted."
 
         if args:
             type_ = [arg for arg in args if arg is not None][0]
@@ -36,12 +37,21 @@ class Field(metaclass=FieldMeta):
 
         if type_ not in FIELD_MAPPING:
             raise TypeError(f"{type_} is not supported.")
-        else:
-            self._field = FIELD_MAPPING[self.type]
 
-    def __call__(self, parent, field_name, **kwargs):
+        self._field = FIELD_MAPPING[self.type]
+
+        self._kwargs = {}
+
+    def __call__(self, *args, **kwargs):
+        # This is necessary to allow the following syntax in the model:
+        #     field_name: Field[str](max_char=5)
+        if not args:
+            self._kwargs.update(kwargs)
+            return self
+
+        kwargs.update(self._kwargs)
         return self._field(
-            parent, field_name, python_type=self.type, nullable=self.nullable, **kwargs
+            *args, python_type=self.type, nullable=self.nullable, **kwargs
         )
 
 
@@ -55,15 +65,30 @@ class BaseField:
 
         self._value = UNKNOWN_VALUE
 
+        if self.is_pk:
+            self._value = None
+
     @property
     def value(self):
         if self._value == UNKNOWN_VALUE:
-            data = Fetcher().get_values(self._parent, self._name)
+            raise DataNotFetchedException
+
+        return self._value
+
+    @value.setter
+    def value(self, val):
+        self._value = val
+
+    def __call__(self):
+        return deepcopy(self)
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__} {self._name}={self._value}>"
 
 
 class StringField(BaseField):
     def __init__(self, *args, python_type=str, nullable=False, **kwargs):
-        self.max_length = kwargs.pop("max_char")
+        self.max_char = kwargs.pop("max_char")
 
         kwargs["python_type"] = python_type
         kwargs["nullable"] = nullable

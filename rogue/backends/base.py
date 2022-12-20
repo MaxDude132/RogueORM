@@ -2,7 +2,7 @@ from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
-from rogue.backends.errors import FormatAlreadyDefined, FormatNotRecognized
+from rogue.backends.errors import FormatNotRecognized
 
 
 class BaseDatabaseClient(metaclass=ABCMeta):
@@ -43,38 +43,24 @@ class WhereStatement:
 class BaseQueryBuilder(metaclass=ABCMeta):
     SELECT = "SELECT"
     UPDATE = "UPDATE"
-    INSERT = "INSERT"
+    INSERT = "INSERT INTO"
     AVAILABLE_FORMATS = (SELECT, UPDATE, INSERT)
 
     FROM = "FROM"
     WHERE = "WHERE"
     AND = "AND"
+    VALUES = "VALUES"
 
-    def __init__(self, client):
+    def __init__(self, client, model):
         self.client = client
-        self.format = None
+        self.model = model
 
-        self.table_name = None
+        self.table_name = self.model.table_name
+        self.fields = self.model.get_class_fields()
+
         self.where_statements = []
 
-    def set_query_format(self, format):
-        if self.format:
-            raise FormatAlreadyDefined()
-
-        if format not in self.AVAILABLE_FORMATS:
-            raise FormatNotRecognized()
-
         self.format = format
-
-    def _query_start(self, model):
-        self.table_name = model.table_name
-        self.fields = model.get_fields()
-
-    def select_from(self, model):
-        self._query_start(model)
-
-        self.set_query_format(self.SELECT)
-        return self
 
     def where(self, field, comparison, value):
         self.where_statements.append(
@@ -82,12 +68,43 @@ class BaseQueryBuilder(metaclass=ABCMeta):
         )
         return self
 
-    def _build_query(self):
-        if self.format == self.SELECT:
+    @abstractmethod
+    def fetch_one(self):
+        pass
+
+    @abstractmethod
+    def fetch_many(self, limit=None):
+        pass
+
+    @abstractmethod
+    def fetch_all(self):
+        pass
+
+    def _format_data(self, data):
+        formatted_data = []
+
+        for row in data:
+            formatted_data.append(dict(zip(self.fields.keys(), row)))
+
+        return formatted_data
+
+    def _build_query(self, format_, data=None):
+        if format_ not in self.AVAILABLE_FORMATS:
+            raise FormatNotRecognized(
+                f"Format {format_} is not an available format. Available formats are: {', '.join(self.AVAILABLE_FORMATS)}"
+            )
+
+        if format_ == self.SELECT:
             return self._build_select()
+        elif format_ == self.INSERT:
+            return self._build_insert(data)
 
     @abstractmethod
     def _build_select(self):
+        pass
+
+    @abstractmethod
+    def _build_insert(self):
         pass
 
     @abstractmethod

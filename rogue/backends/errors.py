@@ -1,4 +1,4 @@
-class FormatAlreadyDefined(Exception):
+class OperationalError(Exception):
     pass
 
 

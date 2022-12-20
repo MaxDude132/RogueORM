@@ -1,8 +1,10 @@
 from typing import Any
 import re
 
-from rogue.models.errors import NotAKnownField
-from .fields import BaseField, Field, IntegerField
+from rogue.managers import Manager
+
+from .errors import MissingFieldValueError
+from .fields import BaseField, Field
 
 
 class ModelMeta(type):
@@ -19,8 +21,7 @@ class ModelMeta(type):
             return instance
 
         instance.table_name = cls._get_table_name(name)
-
-        instance.id = Field[int](instance, name, primary_key=True)
+        instance.id = Field[int](instance, "id", primary_key=True)
 
         __annotations__ = namespace.get("__annotations__") or {}
 
@@ -43,15 +44,51 @@ class ModelMeta(type):
 
 
 class Model(metaclass=ModelMeta):
+    db_name = "default.sqlite"
+
     def __init__(self, **kwargs):
-        self.table_name = None
+        self._instantiate_fields()
 
         for field_name, field in self.fields.items():
             if field_name in kwargs:
                 field.value = kwargs[field_name]
+            elif field.nullable:
+                field.value = None
+            elif not field.is_pk:
+                raise MissingFieldValueError(f"Field {field_name} cannot be None.")
+
+    def _instantiate_fields(self):
+        for field_name, field in self.get_class_fields().items():
+            setattr(self, field_name, field())
 
     @classmethod
-    def get_fields(cls):
+    def _get_new_manager(cls):
+        return Manager(cls)
+
+    def save(self):
+        manager = self._get_new_manager()
+        all_field_values = self.get_all_field_values()
+
+        if self.id is None:
+            del all_field_values["id"]
+            new_values = manager.insert(all_field_values)
+            self.id = new_values["id"]
+        else:
+            manager.update(self.get_all_field_values())
+
+    @classmethod
+    def get(cls, **kwargs):
+        try:
+            return cls._get_new_manager().where(**kwargs).first()[0]
+        except IndexError:
+            return None
+
+    @classmethod
+    def all(cls):
+        return cls._get_new_manager().all()
+
+    @classmethod
+    def get_class_fields(cls):
         return {
             field_name: field
             for field_name, field in cls.__dict__.items()
@@ -60,21 +97,27 @@ class Model(metaclass=ModelMeta):
 
     @property
     def fields(self):
-        return self.get_fields()
+        return {
+            field_name: field
+            for field_name, field in self.__dict__.items()
+            if isinstance(field, BaseField)
+        }
 
-    def _get_field_value(self, field_name):
-        try:
-            self.__class__.__dict__.get(field_name).value
-        except AttributeError:
-            raise NotAKnownField()
+    def get_all_field_values(self):
+        return {field_name: field.value for field_name, field in self.fields.items()}
 
     def __getattribute__(self, __name: str) -> Any:
-        if __name in ("__class__", "fields", "get_fields"):
+        if __name in (
+            "__class__",
+            "__dict__",
+            "get_class_fields",
+            "fields",
+        ):
             return super().__getattribute__(__name)
-        elif __name in (fields := self.get_fields()):
+        elif __name in (fields := self.fields):
             return fields[__name].value
 
         return super().__getattribute__(__name)
 
-    def __str__(self) -> str:
-        return f"<{self.__class__.__name__} {', '.join([f'{name}={field.value}' for name, field in self.fields.items()])}>"
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__} {', '.join([str(field) for field in self.fields.values()])}>"
