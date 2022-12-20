@@ -38,3 +38,6 @@ jobs:
     - name: Test with unittest
       run: |
         python -m unittest
+    - name: Integrate codecov
+      run: |
+        curl -Os https://uploader.codecov.io/latest/linux/codecov chmod +x codecov ./codecov
