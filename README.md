@@ -1,6 +1,6 @@
 # RogueORM
 
-![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/MaxDude132/RogueORM/python-package.yml)
+![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/MaxDude132/RogueORM/python-package.yml?branch=main)
 
  A high level ORM that strives to get rid of all N+1 issues.
 
