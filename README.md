@@ -1,6 +1,6 @@
 # RogueORM
-[![build-status-image]][build-status]
-[![pypi-version]][pypi]
+
+![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/MaxDude132/RogueORM/python-package.yml)
 
  A high level ORM that strives to get rid of all N+1 issues.
 
