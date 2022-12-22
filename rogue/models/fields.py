@@ -1,6 +1,8 @@
 from copy import deepcopy
 from typing import get_args
 
+from rogue.managers import RelationManager
+
 from .errors import DataNotFetchedException, FieldValidationError
 
 
@@ -54,6 +56,9 @@ class Field(metaclass=FieldMeta):
         # This is necessary to allow the following syntax in the model:
         #     field_name: Field[str](max_char=5)
         if not args:
+            if self._field is ForeignKeyField and kwargs.get("one_to_one"):
+                self._field = OneToOneField
+
             self._kwargs.update(kwargs)
             return self
 
@@ -90,7 +95,7 @@ class BaseField:
     def build_for_model(self, value):
         return value
 
-    def foreign_relations(self, value):
+    def get_relation_wrapper(self, value):
         return
 
 
@@ -114,29 +119,29 @@ class RelationField(BaseField):
     pass
 
 
-class ForeignKeyWrapper:
-    def __init__(self, foreign_model, value):
+class BaseWrapper:
+    pass
+
+
+class ForeignKeyWrapper(BaseWrapper):
+    def __init__(self, foreign_model, id):
         self._foreign_model = foreign_model
-        self._value = value
+        self.id = id
 
         self._cache = None
 
     def __call__(self):
-        if self._value is None:
+        if self.id is None:
             return None
 
-        if self._cache:
+        if self._cache is not None:
             return self._cache
 
-        self._cache = self._foreign_model.get(id=self._value)
+        self._cache = self._foreign_model.get(id=self.id)
         return self._cache
 
 
-class ReverseRelationField(RelationField):
-    pass
-
-
-class ForeignKeyField(BaseField):
+class ForeignKeyField(RelationField):
     PYTHON_TYPE = int
 
     def __init__(self, parent, field_name, foreign_model_class, **kwargs):
@@ -146,7 +151,7 @@ class ForeignKeyField(BaseField):
         super().__init__(parent, field_name, **kwargs)
 
         reverse_relation_name = kwargs.get(
-            "reverse_name", self._parent.table_name + "_set"
+            "reverse_name", self._get_reverse_relation_name()
         )
         if hasattr(self._foreign_model, reverse_relation_name):
             raise FieldValidationError(
@@ -157,19 +162,50 @@ class ForeignKeyField(BaseField):
         setattr(
             self._foreign_model,
             reverse_relation_name,
-            ReverseRelationField(self._foreign_model, None, nullable=True),
+            self._get_reverse_relation(field_name),
         )
 
+    def _get_reverse_relation_name(self):
+        return self._parent.table_name + "_set"
+
+    def _get_reverse_relation(self, field_name):
+        return RelationManager(self._parent, field_name)
+
     def clean_value(self, value):
-        if value is not None:
+        if value is not None and hasattr(value, "id") and hasattr(value, "save"):
             if value.id is None:
                 value.save()
 
             value = value.id
         return super().clean_value(value)
 
-    def foreign_relations(self, value):
+    def get_relation_wrapper(self, value):
         return ForeignKeyWrapper(self._foreign_model, value)
+
+
+class OneToOneWrapper(BaseWrapper):
+    def __init__(self, foreign_model):
+        self._foreign_model = foreign_model
+        self._cache = None
+        self.id = None
+
+    def __call__(self):
+        if self.id is None:
+            return None
+
+        if self._cache is not None:
+            return self._cache
+
+        self._cache = self._foreign_model.get(id=self.id)
+        return self._cache
+
+
+class OneToOneField(ForeignKeyField):
+    def _get_reverse_relation_name(self):
+        return self._parent.table_name
+
+    def _get_reverse_relation(self, _field_name):
+        return OneToOneWrapper(self._parent)
 
 
 FIELD_MAPPING = {str: StringField, int: IntegerField, float: FloatField}

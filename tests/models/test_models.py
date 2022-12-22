@@ -21,6 +21,12 @@ class ModelTestCase(TestCase):
             "FOREIGN KEY(test_model_id) REFERENCES test_model (id), "
             "FOREIGN KEY(other_test_model_id) REFERENCES test_model (id));"
         )
+        self.client.execute(
+            "CREATE TABLE error_defined_model (id integer PRIMARY KEY autoincrement, "
+            "test_model_id integer NOT NULL, other_test_model_id integer, "
+            "FOREIGN KEY(test_model_id) REFERENCES test_model (id), "
+            "FOREIGN KEY(other_test_model_id) REFERENCES test_model (id));"
+        )
 
     def test_wrong_model_definitions(self):
         # Field needs to be passed a Python type
@@ -78,6 +84,48 @@ class ModelTestCase(TestCase):
                 reverse_name="other_reverse_name"  # noqa: F821
             )
 
+        # test_model not passed, but it is not nullable
+        with self.assertRaises(FieldValidationError):
+            defined_model = DefinedModel(test=5)
+
+        test_model = TestModel(test=5)
+        test_model.save()
+        defined_model = DefinedModel(test_model=test_model)
+        defined_model.save()
+
+        other_defined_model = DefinedModel(test_model=test_model)
+        other_defined_model.save()
+
+        wrong_test_model = TestModel(test=6)
+        wrong_defined_model = DefinedModel(test_model=wrong_test_model)
+        wrong_defined_model.save()
+
+        self.assertEqual(defined_model.test_model.id, test_model.id)
+        self.assertIsNone(defined_model.other_test_model)
+
+        self.assertIn(defined_model, test_model.defined_model_set)
+        self.assertIn(other_defined_model, test_model.defined_model_set)
+        self.assertNotIn(wrong_defined_model, test_model.defined_model_set)
+        self.assertNotIn(wrong_test_model, test_model.defined_model_set)
+
+        # Make sure the cache is used and the DB is not hit each time
+        self.assertIs(defined_model.test_model, defined_model.test_model)
+
+    def test_model_with_one_to_one_relationship(self):
+        # 2 related fields with the same name
+        with self.assertRaises(FieldValidationError):
+
+            class ErrorDefinedModel(Model):
+                test_model: Field[TestModel](one_to_one=True)
+                other_test_model: Field[TestModel | None](one_to_one=True)
+
+        class DefinedModel(Model):
+            test_model: Field[TestModel](one_to_one=True)
+            other_test_model: Field[TestModel | None](
+                reverse_name="reverse_name", one_to_one=True  # noqa: F821
+            )
+
+        # test_model not passed, but it is not nullable
         with self.assertRaises(FieldValidationError):
             defined_model = DefinedModel(test=5)
 
@@ -85,11 +133,12 @@ class ModelTestCase(TestCase):
         defined_model = DefinedModel(test_model=test_model)
         defined_model.save()
 
-        self.assertEqual(defined_model.test_model.id, test_model.id)
+        self.assertIsNotNone(defined_model.test_model)
+        self.assertIsNotNone(test_model.defined_model)
         self.assertIsNone(defined_model.other_test_model)
 
-        # Make sure the cache is used and the DB is not hit each time
-        self.assertIs(defined_model.test_model, defined_model.test_model)
+        self.assertEqual(test_model.id, defined_model.test_model.id)
+        self.assertEqual(defined_model.id, test_model.defined_model.id)
 
     def test_model_instantiations(self):
         class DefinedModel(Model):
@@ -159,3 +208,4 @@ class ModelTestCase(TestCase):
     def tearDown(self) -> None:
         self.client.execute("DROP TABLE test_model;")
         self.client.execute("DROP TABLE defined_model;")
+        self.client.execute("DROP TABLE error_defined_model;")

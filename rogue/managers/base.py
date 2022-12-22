@@ -14,6 +14,7 @@ class Manager:
         self._client = DatabaseClient(self.model.db_name)
         self._query = QueryBuilder(self._client, model)
         self._cache = None
+        self._is_none = False
 
     def first(self):
         try:
@@ -45,7 +46,11 @@ class Manager:
         return self._query.update(pk, data)[0]
 
     def delete(self, pk):
-        manager = self.where(id=pk)._query.delete()
+        self.where(id=pk)._query.delete()
+
+    def none(self):
+        self._is_none = True
+        return self
 
     def validate_data(self, data):
         if not data:
@@ -78,22 +83,37 @@ class Manager:
     def _build_models(self, data):
         models = []
         for row in data:
+            row = self._build_relations(row)
             models.append(self.model(**row))
 
         return models
+
+    def _build_relations(self, row):
+        for field_name, field in self.model.get_related_fields().items():
+            if field.name in row:
+                row[field_name] = row[field.name]
+        return row
 
     def __iter__(self):
         return iter(self.all_models)
 
     @property
     def all_data(self):
-        if self._cache:
-            data = self._cache
+        obj = self._base_filtering()
+
+        if self._is_none:
+            return []
+
+        if obj._cache is not None:
+            data = obj._cache
         else:
-            data = self._query.fetch_all()
-            self._cache = data
+            data = obj._query.fetch_all()
+            obj._cache = data
 
         return data
+
+    def _base_filtering(self):
+        return self
 
     @property
     def all_models(self):
@@ -105,5 +125,28 @@ class Manager:
     def __len__(self):
         return len(list(self.__iter__()))
 
+    def __contains__(self, other):
+        if not isinstance(other, self.model):
+            return False
+
+        for data in self.all_data:
+            if other.id == data["id"]:
+                return True
+
+        return False
+
     def __repr__(self):
         return f"<{self.__class__.__name__} [{', '.join(str(model) for model in self.all_models)}]>"
+
+
+class RelationManager(Manager):
+    def __init__(self, model, lookup_field):
+        self.lookup_field = lookup_field
+        self.id = None
+        super().__init__(model)
+
+    def _base_filtering(self):
+        if self.id is None:
+            return self.none()
+
+        return self.where(**{self.lookup_field: self.id})

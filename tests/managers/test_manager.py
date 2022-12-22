@@ -76,5 +76,8 @@ class ManagerTestCase(TestCase):
         manager = TestManager.where_not(test__in=test_values)
         self.assertEqual(manager.first().test, 2)
 
+    def test_none(self):
+        self.assertFalse(TestManager.none())
+
     def tearDown(self) -> None:
         self.client.execute("DROP TABLE test_manager;")

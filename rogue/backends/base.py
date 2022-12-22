@@ -70,12 +70,13 @@ class BaseQueryBuilder(metaclass=ABCMeta):
         self.client = client
         self.model = model
 
-        self.table_name = self.model.table_name
-        self.fields = self.model.get_fields()
-
         self.where_statements = []
 
-        self.format = format
+        self.table_name = self.model.table_name
+
+    @property
+    def fields(self):
+        return self.model.get_fields()
 
     def where(self, field, comparison, value, not_=False):
         comparison_mapping = (

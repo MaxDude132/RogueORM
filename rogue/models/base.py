@@ -1,9 +1,10 @@
-from typing import Any, get_args
+from copy import copy
+from typing import Any
 import re
 
-from rogue.managers import Manager
+from rogue.managers import Manager, RelationManager
 
-from .fields import BaseField, Field
+from .fields import BaseField, Field, RelationField, OneToOneWrapper, BaseWrapper
 
 
 class ModelMeta(type):
@@ -48,19 +49,33 @@ class Model(metaclass=ModelMeta):
     def __init__(self, **kwargs):
         self._foreign_relations = {}
 
+        self._set_related_managers()
+        self._set_related_managers_id(kwargs.get("id"))
+
         for field_name, field in self.get_model_fields().items():
-            value = field.clean_value(kwargs.get(field_name))
+            value = field.clean_value(kwargs.pop(field_name, None))
             value = field.build_for_model(value)
             field.validate(value)
 
             if field.name:
                 setattr(self, field.name, value)
 
-            foreign_relations = field.foreign_relations(value)
+            foreign_relations = field.get_relation_wrapper(value)
             if foreign_relations:
                 self._foreign_relations[field_name] = foreign_relations
 
+        for attr, value in kwargs.items():
+            setattr(self, attr, value)
+
         self.__values_last_save = self.field_values
+
+    def _set_related_managers(self):
+        for field, manager in self.get_class_related_managers().items():
+            setattr(self, field, copy(manager))
+
+    def _set_related_managers_id(self, id):
+        for manager in self.get_related_managers().values():
+            manager.id = id
 
     @classmethod
     def _get_new_manager(cls):
@@ -77,6 +92,7 @@ class Model(metaclass=ModelMeta):
             new_values = manager.insert(field_values)
             self.id = new_values["id"]
             self.__values_last_save["id"] = self.id
+            self._set_related_managers_id(self.id)
         else:
             manager.update(self.id, self.get_changed_fields())
 
@@ -108,6 +124,10 @@ class Model(metaclass=ModelMeta):
         return cls._get_new_manager().all()
 
     @classmethod
+    def none(cls):
+        return cls._get_new_manager().none()
+
+    @classmethod
     def get_fields(cls):
         return {
             field.name: field
@@ -125,11 +145,30 @@ class Model(metaclass=ModelMeta):
 
     @classmethod
     def get_field_names(cls):
-        return [
-            field.name
-            for field in cls.__dict__.values()
-            if isinstance(field, BaseField)
-        ]
+        return list(cls.get_fields())
+
+    @classmethod
+    def get_related_fields(cls):
+        return {
+            field_name: field
+            for field_name, field in cls.get_model_fields().items()
+            if isinstance(field, RelationField)
+        }
+
+    @classmethod
+    def get_class_related_managers(cls):
+        return {
+            field_name: field
+            for field_name, field in cls.__dict__.items()
+            if isinstance(field, (RelationManager, OneToOneWrapper))
+        }
+
+    def get_related_managers(self):
+        return {
+            field_name: field
+            for field_name, field in self.__dict__.items()
+            if isinstance(field, (RelationManager, OneToOneWrapper))
+        }
 
     @property
     def field_values(self):
@@ -162,7 +201,11 @@ class Model(metaclass=ModelMeta):
         ):
             return self._foreign_relations[name]()
 
-        return super().__getattribute__(name)
+        attribute = super().__getattribute__(name)
+        if isinstance(attribute, BaseWrapper):
+            return attribute()
+
+        return attribute
 
     def __repr__(self) -> str:
         fields = [
