@@ -74,7 +74,9 @@ class ModelTestCase(TestCase):
 
         class DefinedModel(Model):
             test_model: Field[TestModel]
-            other_test_model: Field[TestModel | None](reverse_name="other_reverse_name")
+            other_test_model: Field[TestModel | None](
+                reverse_name="other_reverse_name"
+            )  # noqa: F821
 
         with self.assertRaises(FieldValidationError):
             defined_model = DefinedModel(test=5)
