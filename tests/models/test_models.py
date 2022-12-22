@@ -123,6 +123,12 @@ class ModelTestCase(TestCase):
         self.assertEqual(test_model.id, initial_id)
         self.assertEqual(test_model.test, 5)
 
+    def test_delete_model(self):
+        self.client.execute("INSERT INTO test_model (test) VALUES (42)")
+        model = TestModel.get(test=42)
+        model.delete()
+        self.assertIsNone(model.id)
+
     def test_get_model(self):
         model = TestModel.get(id=1)
         self.assertIsNone(model)

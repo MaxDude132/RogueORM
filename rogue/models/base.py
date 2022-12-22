@@ -87,6 +87,10 @@ class Model(metaclass=ModelMeta):
 
         return created
 
+    def delete(self):
+        self._get_new_manager().delete(self.id)
+        self.id = None
+
     @classmethod
     def get(cls, **kwargs):
         return cls._get_new_manager().where(**kwargs).first()

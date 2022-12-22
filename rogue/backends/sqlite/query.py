@@ -29,6 +29,9 @@ class QueryBuilder(BaseQueryBuilder):
         )
         return data
 
+    def delete(self):
+        self.client.execute(*self._build_delete())
+
     def _build_select(self):
         query = f"{self.SELECT} {', '.join(self.fields.keys())} {self.FROM} {self.table_name}"
 
@@ -59,6 +62,14 @@ class QueryBuilder(BaseQueryBuilder):
             f"{self.UPDATE} {self.table_name} SET {', '.join(formatted_column_updates)}",
             formatted_data,
         )
+
+    def _build_delete(self):
+        query = f"{self.DELETE} {self.FROM} {self.table_name}"
+
+        if self.where_statements:
+            query = f"{query} {self._build_where()}"
+
+        return query, ()
 
     def _build_where(self):
         query = f"{self.WHERE} "

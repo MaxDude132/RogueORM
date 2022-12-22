@@ -44,6 +44,9 @@ class Manager:
         self.validate_data(data)
         return self._query.update(pk, data)[0]
 
+    def delete(self, pk):
+        manager = self.where(id=pk)._query.delete()
+
     def validate_data(self, data):
         if not data:
             raise ManagerValidationError(

@@ -11,7 +11,7 @@ _Note_: This package is currently in development and is not production ready yet
 ## Development Roadmap
  1. Define a clear syntax taking advantage of Python 3.10 and later's typing syntax. Status: Done
  2. Define models, managers and fields. Status: Done
- 3. Add support for basic SQLite operation: SELECT, INSERT, UPDATE, DELETE. Status: DELETE missing, others are done.
+ 3. Add support for basic SQLite operation: SELECT, INSERT, UPDATE, DELETE. Status: Done
  4. Add support for Foreign Keys. Status: Done
  5. Add support for ManyToMany relationships using a joining table. Status: Not started
  6. Add support for relation lookup using a similar method to Django's, with __ being put between field names. Status: Not started

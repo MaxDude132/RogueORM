@@ -45,7 +45,7 @@ class BaseQueryBuilder(metaclass=ABCMeta):
     SELECT = "SELECT"
     UPDATE = "UPDATE"
     INSERT = "INSERT INTO"
-    AVAILABLE_FORMATS = (SELECT, UPDATE, INSERT)
+    DELETE = "DELETE"
 
     FROM = "FROM"
     WHERE = "WHERE"
@@ -98,11 +98,23 @@ class BaseQueryBuilder(metaclass=ABCMeta):
         return self
 
     @abstractmethod
-    def fetch_one(self):
+    def fetch_one(self):  # pragma: no cover
         pass
 
     @abstractmethod
-    def fetch_all(self):
+    def fetch_all(self):  # pragma: no cover
+        pass
+
+    @abstractmethod
+    def insert(self, data):  # pragma: no cover
+        pass
+
+    @abstractmethod
+    def update(self, pk, data):  # pragma: no cover
+        pass
+
+    @abstractmethod
+    def delete(self, pk):  # pragma: no cover
         pass
 
     def _format_input_row(self, headers, data):
@@ -131,19 +143,23 @@ class BaseQueryBuilder(metaclass=ABCMeta):
         return formatted_data
 
     @abstractmethod
-    def _build_select(self):
+    def _build_select(self):  # pragma: no cover
         pass
 
     @abstractmethod
-    def _build_insert(self, data):
+    def _build_insert(self, data):  # pragma: no cover
         pass
 
     @abstractmethod
-    def _build_update(self, pk, data):
+    def _build_update(self, pk, data):  # pragma: no cover
         pass
 
     @abstractmethod
-    def _build_where(self):
+    def _build_delete(self, pk):  # pragma: no cover
+        pass
+
+    @abstractmethod
+    def _build_where(self):  # pragma: no cover
         pass
 
     def _validate_data(self, data):
