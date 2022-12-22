@@ -22,15 +22,15 @@ class BaseDatabaseClient(metaclass=ABCMeta):
         self._connection = None
 
     @abstractmethod
-    def get_connection(self):
+    def get_connection(self):  # pragma: no cover
         pass
 
     @abstractmethod
-    def execute(self, statement, *args, **kwargs):
+    def execute(self, statement, *args, **kwargs):  # pragma: no cover
         pass
 
     @abstractmethod
-    def close(self):
+    def close(self):  # pragma: no cover
         pass
 
 
