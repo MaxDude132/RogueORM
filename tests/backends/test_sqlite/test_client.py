@@ -20,7 +20,7 @@ class DatabaseClientTestCase(TestCase):
 
         value = 25
         statement = "INSERT INTO test_client (test_column) VALUES(?)"
-        response = self.database_client.execute(statement, value)
+        response = self.database_client.execute(statement, (value,))
         self.assertIsInstance(response, SqliteCursor)
 
         statement = "SELECT * FROM test_client;"

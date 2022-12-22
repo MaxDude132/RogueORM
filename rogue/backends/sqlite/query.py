@@ -45,8 +45,8 @@ class QueryBuilder(BaseQueryBuilder):
 
         return (
             f"{self.INSERT} {self.table_name} ({', '.join(headers)}) {self.VALUES} ("
-            f"{', '.join(['?' for _ in range(len(formatted_data))])})",
-            formatted_data[0],
+            f"{', '.join(['?' for _ in range(len(headers))])})",
+            formatted_data,
         )
 
     def _build_update(self, pk, data):
@@ -57,7 +57,7 @@ class QueryBuilder(BaseQueryBuilder):
 
         return (
             f"{self.UPDATE} {self.table_name} SET {', '.join(formatted_column_updates)}",
-            formatted_data[0],
+            formatted_data,
         )
 
     def _build_where(self):

@@ -1,9 +1,8 @@
-from typing import Any
+from typing import Any, get_args
 import re
 
 from rogue.managers import Manager
 
-from .errors import ModelValidationError
 from .fields import BaseField, Field
 
 
@@ -47,17 +46,19 @@ class Model(metaclass=ModelMeta):
     db_name = "default.sqlite"
 
     def __init__(self, **kwargs):
-        for field_name, field in self.get_fields().items():
-            field.validate(kwargs.get(field_name))
+        self._foreign_relations = {}
 
-            if field_name in kwargs:
-                value = kwargs[field_name]
-            elif field.default:
-                value = field.default
-            else:
-                value = None
+        for field_name, field in self.get_model_fields().items():
+            value = field.clean_value(kwargs.get(field_name))
+            value = field.build_for_model(value)
+            field.validate(value)
 
-            setattr(self, field_name, value)
+            if field.name:
+                setattr(self, field.name, value)
+
+            foreign_relations = field.foreign_relations(value)
+            if foreign_relations:
+                self._foreign_relations[field_name] = foreign_relations
 
         self.__values_last_save = self.field_values
 
@@ -105,15 +106,33 @@ class Model(metaclass=ModelMeta):
     @classmethod
     def get_fields(cls):
         return {
+            field.name: field
+            for field in cls.__dict__.values()
+            if isinstance(field, BaseField) and field.name
+        }
+
+    @classmethod
+    def get_model_fields(cls):
+        return {
             field_name: field
             for field_name, field in cls.__dict__.items()
             if isinstance(field, BaseField)
         }
 
+    @classmethod
+    def get_field_names(cls):
+        return [
+            field.name
+            for field in cls.__dict__.values()
+            if isinstance(field, BaseField)
+        ]
+
     @property
     def field_values(self):
         return {
-            field_name: getattr(self, field_name) for field_name in self.get_fields()
+            field.name: getattr(self, field_name)
+            for field_name, field in self.get_fields().items()
+            if field.name
         }
 
     def get_changed_fields(self):
@@ -132,6 +151,14 @@ class Model(metaclass=ModelMeta):
             fields[attr].validate(value)
 
         super().__setattr__(attr, value)
+
+    def __getattribute__(self, name: str):
+        if name != "_foreign_relations" and name in getattr(
+            self, "_foreign_relations", []
+        ):
+            return self._foreign_relations[name]()
+
+        return super().__getattribute__(name)
 
     def __repr__(self) -> str:
         fields = [

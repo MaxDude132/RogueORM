@@ -1,6 +1,8 @@
 from ..base import BaseDatabaseClient
 import sqlite3
 
+from ..errors import OperationalError
+
 
 class DatabaseClient(BaseDatabaseClient):
     def get_connection(self):
@@ -9,7 +11,7 @@ class DatabaseClient(BaseDatabaseClient):
 
         return self._connection
 
-    def execute(self, statement, *args):
+    def execute(self, statement, args=()):
         connection = self.get_connection()
         cursor = connection.cursor()
         data = cursor.execute(statement, args)

@@ -53,7 +53,7 @@ class Manager:
         model_fields = self.model.get_fields()
 
         for field_name in data:
-            if field_name not in self.model.get_fields():
+            if field_name not in self.model.get_field_names():
                 raise ManagerValidationError(
                     f"{self.model.table_name} has no field named {field_name}."
                 )

@@ -20,7 +20,7 @@ class FieldMeta(type):
         nullable = type(None) in args
         assert (
             len(args) < 2 or len(args) == 2 and nullable
-        ), f"Only union between a type and None is accepted."
+        ), "Only union between a type and None is accepted."
 
         if args:
             type_ = [arg for arg in args if arg is not None][0]
@@ -32,17 +32,25 @@ class FieldMeta(type):
 
 class Field(metaclass=FieldMeta):
     def __init__(self, type_: type, nullable: bool = False):
+        from .base import Model
+
         self.type: type = type_
         self.nullable: bool = nullable
 
-        if type_ not in FIELD_MAPPING:
-            raise TypeError(f"{type_} is not supported.")
-
-        self._field = FIELD_MAPPING[self.type]
-
         self._kwargs = {}
 
+        if type_ not in FIELD_MAPPING and not issubclass(type_, Model):
+            raise TypeError(f"{type_} is not supported.")
+
+        if issubclass(type_, Model):
+            self._field = ForeignKeyField
+            self._kwargs["foreign_model_class"] = type_
+        else:
+            self._field = FIELD_MAPPING[self.type]
+
     def __call__(self, *args, **kwargs):
+        nullable = kwargs.pop("nullable", False) or self.nullable
+
         # This is necessary to allow the following syntax in the model:
         #     field_name: Field[str](max_char=5)
         if not args:
@@ -50,9 +58,7 @@ class Field(metaclass=FieldMeta):
             return self
 
         kwargs.update(self._kwargs)
-        return self._field(
-            *args, python_type=self.type, nullable=self.nullable, **kwargs
-        )
+        return self._field(*args, python_type=self.type, nullable=nullable, **kwargs)
 
 
 class BaseField:
@@ -60,23 +66,32 @@ class BaseField:
 
     def __init__(self, parent, field_name, python_type=None, nullable=False, **kwargs):
         self._parent = parent
-        self._name = field_name
+        self.name = field_name
         self.python_type = python_type or self.PYTHON_TYPE
         self.nullable = nullable
         self.default = None
         self.is_pk = kwargs.get("primary_key", False)
 
     def validate(self, value):
-        if value is None and self.default:
-            value = self.default
-
         if value is None and not self.nullable and not self.is_pk:
-            raise FieldValidationError(f"Field {self._name} cannot be None.")
+            raise FieldValidationError(f"Field {self.name} cannot be None.")
 
         if value is not None and not isinstance(value, self.PYTHON_TYPE):
             raise FieldValidationError(
-                f"Field {self._name} can only accept type {self.PYTHON_TYPE}, {type(value)} was passed."
+                f"Field {self.name} can only accept type {self.PYTHON_TYPE}, {type(value)} was passed."
             )
+
+    def clean_value(self, value):
+        if value is None and self.default:
+            value = self.default
+
+        return value
+
+    def build_for_model(self, value):
+        return value
+
+    def foreign_relations(self, value):
+        return
 
 
 class StringField(BaseField):
@@ -95,8 +110,66 @@ class FloatField(BaseField):
     PYTHON_TYPE = float
 
 
+class RelationField(BaseField):
+    pass
+
+
+class ForeignKeyWrapper:
+    def __init__(self, foreign_model, value):
+        self._foreign_model = foreign_model
+        self._value = value
+
+        self._cache = None
+
+    def __call__(self):
+        if self._value is None:
+            return None
+
+        if self._cache:
+            return self._cache
+
+        self._cache = self._foreign_model.get(id=self._value)
+        return self._cache
+
+
+class ReverseRelationField(RelationField):
+    pass
+
+
 class ForeignKeyField(BaseField):
     PYTHON_TYPE = int
+
+    def __init__(self, parent, field_name, foreign_model_class, **kwargs):
+        self._foreign_model = foreign_model_class
+        self._model_field_name = field_name
+        field_name += "_id"
+        super().__init__(parent, field_name, **kwargs)
+
+        reverse_relation_name = kwargs.get(
+            "reverse_name", self._parent.table_name + "_set"
+        )
+        if hasattr(self._foreign_model, reverse_relation_name):
+            raise FieldValidationError(
+                f"{reverse_relation_name} already exists on the reverse relation for {self._model_field_name}. "
+                "To fix this, set reverse_name on the field definition like so: Model(reverse_name='my_reverse_name')"
+            )
+
+        setattr(
+            self._foreign_model,
+            reverse_relation_name,
+            ReverseRelationField(self._foreign_model, None, nullable=True),
+        )
+
+    def clean_value(self, value):
+        if value is not None:
+            if value.id is None:
+                value.save()
+
+            value = value.id
+        return super().clean_value(value)
+
+    def foreign_relations(self, value):
+        return ForeignKeyWrapper(self._foreign_model, value)
 
 
 FIELD_MAPPING = {str: StringField, int: IntegerField, float: FloatField}
