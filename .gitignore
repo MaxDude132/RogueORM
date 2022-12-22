@@ -153,3 +153,4 @@ cython_debug/
 
 # Personal:
 notes.txt
+*.sqlite

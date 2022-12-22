@@ -1,8 +1,9 @@
 from abc import ABCMeta, abstractmethod
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
-from rogue.backends.errors import FormatNotRecognized
+from .errors import OperationalError, InvalidComparisonError
 
 
 class BaseDatabaseClient(metaclass=ABCMeta):
@@ -51,18 +52,46 @@ class BaseQueryBuilder(metaclass=ABCMeta):
     AND = "AND"
     VALUES = "VALUES"
 
+    EQUAL = "equal"
+    IN = "in"
+
+    COMPARISON_MAPPING = {
+        EQUAL: "=",
+        IN: "IN",
+    }
+    NOT_COMPARISON_MAPPING = {
+        EQUAL: "!=",
+        IN: "NOT IN",
+    }
+
+    COMPARISON_DEFAULT = EQUAL
+
     def __init__(self, client, model):
         self.client = client
         self.model = model
 
         self.table_name = self.model.table_name
-        self.fields = self.model.get_class_fields()
+        self.fields = self.model.get_fields()
 
         self.where_statements = []
 
         self.format = format
 
-    def where(self, field, comparison, value):
+    def where(self, field, comparison, value, not_=False):
+        comparison_mapping = (
+            self.NOT_COMPARISON_MAPPING if not_ else self.COMPARISON_MAPPING
+        )
+
+        if not comparison:
+            comparison = self.COMPARISON_DEFAULT
+
+        try:
+            comparison = comparison_mapping[comparison]
+        except KeyError:
+            raise InvalidComparisonError(
+                f"{comparison} is not a valid comparison operator."
+            )
+
         self.where_statements.append(
             WhereStatement(field=field, comparison=comparison, value=value)
         )
@@ -73,43 +102,52 @@ class BaseQueryBuilder(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def fetch_many(self, limit=None):
-        pass
-
-    @abstractmethod
     def fetch_all(self):
         pass
 
-    def _format_data(self, data):
+    def _format_input_row(self, headers, data):
+        headers = list(data)
+        formatted_data = [data[header] for header in headers]
+        return formatted_data
+
+    def _format_input_data(self, data):
+        if isinstance(data, dict):
+            headers = list(data)
+            formatted_data = self._format_input_row(headers, data)
+
+        return headers, formatted_data
+
+    def _format_output_data(self, data):
+        assert isinstance(data, Iterable), "Field data must be an iterable."
+
         formatted_data = []
+
+        if not data or data[0] is None:
+            return formatted_data
 
         for row in data:
             formatted_data.append(dict(zip(self.fields.keys(), row)))
 
         return formatted_data
 
-    def _build_query(self, format_, data=None):
-        if format_ not in self.AVAILABLE_FORMATS:
-            raise FormatNotRecognized(
-                f"Format {format_} is not an available format. Available formats are: {', '.join(self.AVAILABLE_FORMATS)}"
-            )
-
-        if format_ == self.SELECT:
-            return self._build_select()
-        elif format_ == self.INSERT:
-            return self._build_insert(data)
-
     @abstractmethod
     def _build_select(self):
         pass
 
     @abstractmethod
-    def _build_insert(self):
+    def _build_insert(self, data):
+        pass
+
+    @abstractmethod
+    def _build_update(self, pk, data):
         pass
 
     @abstractmethod
     def _build_where(self):
         pass
+
+    def _validate_data(self, data):
+        assert data, "Cannot insert without data."
 
 
 class BaseDatabaseSchemaEditor(metaclass=ABCMeta):

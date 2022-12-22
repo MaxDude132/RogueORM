@@ -4,3 +4,7 @@ class OperationalError(Exception):
 
 class FormatNotRecognized(Exception):
     pass
+
+
+class InvalidComparisonError(Exception):
+    pass

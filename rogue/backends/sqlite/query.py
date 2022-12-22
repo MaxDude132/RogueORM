@@ -4,26 +4,30 @@ from ..errors import OperationalError
 
 class QueryBuilder(BaseQueryBuilder):
     def fetch_one(self):
-        data = self.client.execute(self._build_query(self.SELECT)).fetchone()
-        return self._format_data([data])
-
-    def fetch_many(self, limit=None):
-        if limit is None:
-            raise ValueError("limit parameter must be passed.")
-
-        data = self.client.execute(self._build_query(self.SELECT)).fetchmany(size=limit)
-        return self._format_data(data)
+        data = self.client.execute(self._build_select()).fetchone()
+        return self._format_output_data([data])
 
     def fetch_all(self):
-        data = self.client.execute(self._build_query(self.SELECT)).fetchall()
-        return self._format_data(data)
+        data = self.client.execute(self._build_select()).fetchall()
+        return self._format_output_data(data)
 
     def insert(self, data):
-        data = self.client.execute(self._build_query(self.INSERT, data))
-        data = self.client.execute(
-            f"{self.SELECT} {', '.join(self.fields.keys())} {self.FROM} {self.table_name} {self.WHERE} id = (select last_insert_rowid())"
-        ).fetchone()
-        return self._format_data([data])
+        self.client.execute(*self._build_insert(data))
+        data = (
+            self.__class__(self.client, self.model)
+            .where("id", self.EQUAL, "(SELECT last_insert_rowid())")
+            .fetch_one()
+        )
+        return data
+
+    def update(self, pk, data):
+        self.client.execute(*self._build_update(pk, data))
+        data = (
+            self.__class__(self.client, self.model)
+            .where("id", self.EQUAL, pk)
+            .fetch_one()
+        )
+        return data
 
     def _build_select(self):
         query = f"{self.SELECT} {', '.join(self.fields.keys())} {self.FROM} {self.table_name}"
@@ -34,23 +38,26 @@ class QueryBuilder(BaseQueryBuilder):
         return query
 
     def _build_insert(self, data):
-        if data is None or len(data) == 0:
-            raise OperationalError("Cannot insert without data.")
+        assert not self.where_statements, "No where can be passed to an insert backend."
 
-        if self.where_statements:
-            raise OperationalError("No where can be passed to an insert Manager.")
-
-        if isinstance(data, dict):
-            data = [data]
-
-        headers = list(data[0])
-        formatted_data = []
-        for row in data:
-            formatted_data.append(", ".join([str(row[header]) for header in headers]))
+        self._validate_data(data)
+        headers, formatted_data = self._format_input_data(data)
 
         return (
             f"{self.INSERT} {self.table_name} ({', '.join(headers)}) {self.VALUES} ("
-            f"{', '.join(formatted_data)})"
+            f"{', '.join(['?' for _ in range(len(formatted_data))])})",
+            formatted_data[0],
+        )
+
+    def _build_update(self, pk, data):
+        self._validate_data(data)
+        headers, formatted_data = self._format_input_data(data)
+
+        formatted_column_updates = [f"{col_name} = ?" for col_name in headers]
+
+        return (
+            f"{self.UPDATE} {self.table_name} SET {', '.join(formatted_column_updates)}",
+            formatted_data[0],
         )
 
     def _build_where(self):

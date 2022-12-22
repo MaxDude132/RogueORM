@@ -3,7 +3,7 @@ import re
 
 from rogue.managers import Manager
 
-from .errors import MissingFieldValueError
+from .errors import ModelValidationError
 from .fields import BaseField, Field
 
 
@@ -47,48 +47,63 @@ class Model(metaclass=ModelMeta):
     db_name = "default.sqlite"
 
     def __init__(self, **kwargs):
-        self._instantiate_fields()
+        for field_name, field in self.get_fields().items():
+            field.validate(kwargs.get(field_name))
 
-        for field_name, field in self.fields.items():
             if field_name in kwargs:
-                field.value = kwargs[field_name]
-            elif field.nullable:
-                field.value = None
-            elif not field.is_pk:
-                raise MissingFieldValueError(f"Field {field_name} cannot be None.")
+                value = kwargs[field_name]
+            elif field.default:
+                value = field.default
+            else:
+                value = None
 
-    def _instantiate_fields(self):
-        for field_name, field in self.get_class_fields().items():
-            setattr(self, field_name, field())
+            setattr(self, field_name, value)
+
+        self.__values_last_save = self.field_values
 
     @classmethod
     def _get_new_manager(cls):
         return Manager(cls)
 
     def save(self):
+        created = False
         manager = self._get_new_manager()
-        all_field_values = self.get_all_field_values()
+        field_values = self.field_values
 
         if self.id is None:
-            del all_field_values["id"]
-            new_values = manager.insert(all_field_values)
+            created = True
+            del field_values["id"]
+            new_values = manager.insert(field_values)
             self.id = new_values["id"]
+            self.__values_last_save["id"] = self.id
         else:
-            manager.update(self.get_all_field_values())
+            manager.update(self.id, self.get_changed_fields())
+
+        if not created:
+            for field_name, value in field_values.items():
+                setattr(self, field_name, value)
+                self.__values_last_save[field_name] = value
+
+        return created
 
     @classmethod
     def get(cls, **kwargs):
-        try:
-            return cls._get_new_manager().where(**kwargs).first()[0]
-        except IndexError:
-            return None
+        return cls._get_new_manager().where(**kwargs).first()
+
+    @classmethod
+    def where(cls, **kwargs):
+        return cls._get_new_manager().where(**kwargs)
+
+    @classmethod
+    def where_not(cls, **kwargs):
+        return cls._get_new_manager().where_not(**kwargs)
 
     @classmethod
     def all(cls):
         return cls._get_new_manager().all()
 
     @classmethod
-    def get_class_fields(cls):
+    def get_fields(cls):
         return {
             field_name: field
             for field_name, field in cls.__dict__.items()
@@ -96,28 +111,30 @@ class Model(metaclass=ModelMeta):
         }
 
     @property
-    def fields(self):
+    def field_values(self):
         return {
-            field_name: field
-            for field_name, field in self.__dict__.items()
-            if isinstance(field, BaseField)
+            field_name: getattr(self, field_name) for field_name in self.get_fields()
         }
 
-    def get_all_field_values(self):
-        return {field_name: field.value for field_name, field in self.fields.items()}
+    def get_changed_fields(self):
+        changed_fields = {}
 
-    def __getattribute__(self, __name: str) -> Any:
-        if __name in (
-            "__class__",
-            "__dict__",
-            "get_class_fields",
-            "fields",
-        ):
-            return super().__getattribute__(__name)
-        elif __name in (fields := self.fields):
-            return fields[__name].value
+        for field, value in self.field_values.items():
+            if value != self.__values_last_save.get(field):
+                changed_fields[field] = value
 
-        return super().__getattribute__(__name)
+        return changed_fields
+
+    def __setattr__(self, attr, value):
+        fields = self.get_fields()
+
+        if attr in fields:
+            fields[attr].validate(value)
+
+        super().__setattr__(attr, value)
 
     def __repr__(self) -> str:
-        return f"<{self.__class__.__name__} {', '.join([str(field) for field in self.fields.values()])}>"
+        fields = [
+            f"{str(field)}={str(value)}" for field, value in self.field_values.items()
+        ]
+        return f"<{self.__class__.__name__} {', '.join(fields)}>"

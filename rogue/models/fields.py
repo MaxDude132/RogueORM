@@ -1,7 +1,7 @@
 from copy import deepcopy
 from typing import get_args
 
-from .errors import DataNotFetchedException
+from .errors import DataNotFetchedException, FieldValidationError
 
 
 UNKNOWN_VALUE = "__UNKNOWN_VALUE__"
@@ -56,51 +56,47 @@ class Field(metaclass=FieldMeta):
 
 
 class BaseField:
-    def __init__(self, parent, field_name, python_type=int, nullable=False, **kwargs):
+    PYTHON_TYPE = None
+
+    def __init__(self, parent, field_name, python_type=None, nullable=False, **kwargs):
         self._parent = parent
         self._name = field_name
-        self.python_type = python_type
+        self.python_type = python_type or self.PYTHON_TYPE
         self.nullable = nullable
+        self.default = None
         self.is_pk = kwargs.get("primary_key", False)
 
-        self._value = UNKNOWN_VALUE
+    def validate(self, value):
+        if value is None and self.default:
+            value = self.default
 
-        if self.is_pk:
-            self._value = None
+        if value is None and not self.nullable and not self.is_pk:
+            raise FieldValidationError(f"Field {self._name} cannot be None.")
 
-    @property
-    def value(self):
-        if self._value == UNKNOWN_VALUE:
-            raise DataNotFetchedException
-
-        return self._value
-
-    @value.setter
-    def value(self, val):
-        self._value = val
-
-    def __call__(self):
-        return deepcopy(self)
-
-    def __repr__(self):
-        return f"<{self.__class__.__name__} {self._name}={self._value}>"
+        if value is not None and not isinstance(value, self.PYTHON_TYPE):
+            raise FieldValidationError(
+                f"Field {self._name} can only accept type {self.PYTHON_TYPE}, {type(value)} was passed."
+            )
 
 
 class StringField(BaseField):
-    def __init__(self, *args, python_type=str, nullable=False, **kwargs):
-        self.max_char = kwargs.pop("max_char")
+    PYTHON_TYPE = str
 
-        kwargs["python_type"] = python_type
-        kwargs["nullable"] = nullable
+    def __init__(self, *args, **kwargs):
+        self.max_char = kwargs.pop("max_char")
         super().__init__(*args, **kwargs)
 
 
 class IntegerField(BaseField):
-    pass
+    PYTHON_TYPE = int
+
+
+class FloatField(BaseField):
+    PYTHON_TYPE = float
 
 
 class ForeignKeyField(BaseField):
-    pass
+    PYTHON_TYPE = int
 
 
-FIELD_MAPPING = {str: StringField, int: IntegerField}
+FIELD_MAPPING = {str: StringField, int: IntegerField, float: FloatField}
