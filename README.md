@@ -15,11 +15,12 @@ _Note_: This package is currently in development and is not production ready yet
  4. Add support for Foreign Keys. Status: Done
  5. Add support for ManyToMany relationships using a joining table. Status: Not started
  6. Add support for relation lookup using a similar method to Django's, with __ being put between field names. Status: Not started
- 7. Add support for JOIN, UNION and GROUP BY, with an interface to build them. Status: Not started
- 8. Add logic for batch fetching in loops. Status: Not started
- 9. Add logic for select_related. By design, prefetch_related will never be part of this ORM, preferring a 'fetch in batch when needed' approach. Status: Not started
- 10. Look into supporting up to Python 3.7 by taking into account the possible usage of *Union* and *Optional* Maybe import from future? Status: Not started
- 11. Improve testing by adding a way to catch queries made to the database, to make sure we lower them as much as possible. Status: Not started
- 12. Add support for postgresql
+ 7. Add a migration system. Status: Not started
+ 8. Add support for JOIN, UNION and GROUP BY, with an interface to build them. Status: Not started
+ 9. Add logic for batch fetching in loops. Status: Not started
+ 10. Add logic for select_related. By design, prefetch_related will never be part of this ORM, preferring a 'fetch in batch when needed' approach. Status: Not started
+ 11. Look into supporting up to Python 3.7 by taking into account the possible usage of *Union* and *Optional* Maybe import from future? Status: Not started
+ 12. Improve testing by adding a way to catch queries made to the database, to make sure we lower them as much as possible. Status: Not started
+ 13. Add support for postgresql. Status: Not started
 
 If the project interests you, don't hesitate to reach out!
