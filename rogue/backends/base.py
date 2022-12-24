@@ -164,7 +164,7 @@ class BaseQueryBuilder(metaclass=ABCMeta):
         pass
 
     def _validate_data(self, data):
-        assert data, "Cannot insert without data."
+        assert data is not None, "Cannot insert without data."
 
 
 class BaseDatabaseSchemaEditor(metaclass=ABCMeta):

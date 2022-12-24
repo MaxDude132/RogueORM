@@ -1,9 +1,10 @@
-from copy import deepcopy
+from collections.abc import Iterable
 from typing import get_args
 
-from rogue.managers import RelationManager
+from rogue.managers import RelationManager, ManyToManyRelationManager
 
-from .errors import DataNotFetchedException, FieldValidationError
+from .errors import FieldValidationError
+from .utils import get_through_model
 
 
 UNKNOWN_VALUE = "__UNKNOWN_VALUE__"
@@ -58,6 +59,8 @@ class Field(metaclass=FieldMeta):
         if not args:
             if self._field is ForeignKeyField and kwargs.get("one_to_one"):
                 self._field = OneToOneField
+            elif self._field is ForeignKeyField and kwargs.get("many_to_many"):
+                self._field = ManyToManyField
 
             self._kwargs.update(kwargs)
             return self
@@ -83,7 +86,7 @@ class BaseField:
 
         if value is not None and not isinstance(value, self.PYTHON_TYPE):
             raise FieldValidationError(
-                f"Field {self.name} can only accept type {self.PYTHON_TYPE}, {type(value)} was passed."
+                f"Field {self.name} on model {self._parent.__name__} can only accept type {self.PYTHON_TYPE}, {type(value)} was passed."
             )
 
     def clean_value(self, value):
@@ -95,7 +98,7 @@ class BaseField:
     def build_for_model(self, value):
         return value
 
-    def get_relation_wrapper(self, value):
+    def get_relation_wrapper(self, field_name, value):
         return
 
 
@@ -147,25 +150,31 @@ class ForeignKeyField(RelationField):
     def __init__(self, parent, field_name, foreign_model_class, **kwargs):
         self._foreign_model = foreign_model_class
         self._model_field_name = field_name
-        field_name += "_id"
+        field_name = self._get_field_name()
         super().__init__(parent, field_name, **kwargs)
 
         reverse_relation_name = kwargs.get(
-            "reverse_name", self._get_reverse_relation_name()
+            "reverse_name", self._get_default_reverse_relation_name()
         )
+        self._set_reverse_relation(reverse_relation_name)
+
+    def _set_reverse_relation(self, reverse_relation_name):
         if hasattr(self._foreign_model, reverse_relation_name):
             raise FieldValidationError(
                 f"{reverse_relation_name} already exists on the reverse relation for {self._model_field_name}. "
-                "To fix this, set reverse_name on the field definition like so: Model(reverse_name='my_reverse_name')"
+                "To fix this, set reverse_name on the field definition like so: Field[Model](reverse_name='my_reverse_name')"
             )
 
         setattr(
             self._foreign_model,
             reverse_relation_name,
-            self._get_reverse_relation(field_name),
+            self._get_reverse_relation(self.name),
         )
 
-    def _get_reverse_relation_name(self):
+    def _get_field_name(self):
+        return self._model_field_name + "_id"
+
+    def _get_default_reverse_relation_name(self):
         return self._parent.table_name + "_set"
 
     def _get_reverse_relation(self, field_name):
@@ -179,7 +188,7 @@ class ForeignKeyField(RelationField):
             value = value.id
         return super().clean_value(value)
 
-    def get_relation_wrapper(self, value):
+    def get_relation_wrapper(self, field_name, value):
         return ForeignKeyWrapper(self._foreign_model, value)
 
 
@@ -201,11 +210,58 @@ class OneToOneWrapper(BaseWrapper):
 
 
 class OneToOneField(ForeignKeyField):
-    def _get_reverse_relation_name(self):
+    def _get_default_reverse_relation_name(self):
         return self._parent.table_name
 
     def _get_reverse_relation(self, _field_name):
         return OneToOneWrapper(self._parent)
+
+
+class ManyToManyField(ForeignKeyField):
+    PYTHON_TYPE = Iterable
+
+    def __init__(self, parent, field_name, foreign_model_class, **kwargs):
+        nullable = kwargs.get("nullable", False)
+        # kwargs["nullable"] = True
+        super().__init__(parent, field_name, foreign_model_class, **kwargs)
+
+        reverse_relation_name = kwargs.get(
+            "reverse_name", self._get_default_reverse_relation_name()
+        )
+
+        self._through_model = kwargs.get(
+            "through",
+            get_through_model(
+                parent,
+                foreign_model_class,
+                self._get_field_name(),
+                reverse_relation_name,
+                nullable,
+            ),
+        )
+
+        self._mapping = {
+            self._get_field_name(): reverse_relation_name,
+            reverse_relation_name: self._get_field_name(),
+        }
+
+    def _set_reverse_relation(self, reverse_relation_name):
+        return
+
+    def _get_field_name(self):
+        return self._model_field_name
+
+    def get_relation_wrapper(self, field_name, value):
+        return ManyToManyRelationManager(self._through_model)
+
+    def clean_value(self, value):
+        if value is None:
+            return
+
+        if not isinstance(value, Iterable):
+            value = [value]
+
+        return value
 
 
 FIELD_MAPPING = {str: StringField, int: IntegerField, float: FloatField}

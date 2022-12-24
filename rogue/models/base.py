@@ -2,9 +2,16 @@ from copy import copy
 from typing import Any
 import re
 
-from rogue.managers import Manager, RelationManager
+from rogue.managers import Manager, RelationManager, ManyToManyRelationManager
 
-from .fields import BaseField, Field, RelationField, OneToOneWrapper, BaseWrapper
+from .fields import (
+    BaseField,
+    Field,
+    RelationField,
+    OneToOneWrapper,
+    BaseWrapper,
+    ManyToManyField,
+)
 
 
 class ModelMeta(type):
@@ -49,8 +56,10 @@ class Model(metaclass=ModelMeta):
     def __init__(self, **kwargs):
         self._foreign_relations = {}
 
+        id_ = kwargs.get("id")
+
         self._set_related_managers()
-        self._set_related_managers_id(kwargs.get("id"))
+        self._set_related_managers_id(id_)
 
         for field_name, field in self.get_model_fields().items():
             value = field.clean_value(kwargs.pop(field_name, None))
@@ -60,8 +69,11 @@ class Model(metaclass=ModelMeta):
             if field.name:
                 setattr(self, field.name, value)
 
-            foreign_relations = field.get_relation_wrapper(value)
-            if foreign_relations:
+            foreign_relations = field.get_relation_wrapper(field.name, value)
+            if isinstance(foreign_relations, ManyToManyRelationManager):
+                foreign_relations.id = id_
+                foreign_relations.lookup_field = field_name + "_id"
+            if foreign_relations is not None:
                 self._foreign_relations[field_name] = foreign_relations
 
         for attr, value in kwargs.items():
@@ -132,7 +144,9 @@ class Model(metaclass=ModelMeta):
         return {
             field.name: field
             for field in cls.__dict__.values()
-            if isinstance(field, BaseField) and field.name
+            if isinstance(field, BaseField)
+            and field.name
+            and not isinstance(field, ManyToManyField)
         }
 
     @classmethod
@@ -196,12 +210,13 @@ class Model(metaclass=ModelMeta):
         super().__setattr__(attr, value)
 
     def __getattribute__(self, name: str):
+        attribute = super().__getattribute__(name)
+
         if name != "_foreign_relations" and name in getattr(
             self, "_foreign_relations", []
         ):
-            return self._foreign_relations[name]()
+            attribute = self._foreign_relations[name]
 
-        attribute = super().__getattribute__(name)
         if isinstance(attribute, BaseWrapper):
             return attribute()
 

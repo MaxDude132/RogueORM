@@ -17,8 +17,14 @@ class Manager:
         self._is_none = False
 
     def first(self):
+        if self._is_none:
+            return
+
+        self._base_filtering()
+
+        data = self._build_models(self._query.fetch_one())
         try:
-            return self._build_models(self._query.fetch_one())[0]
+            return data[0]
         except (IndexError, TypeError):
             return
 
@@ -53,7 +59,7 @@ class Manager:
         return self
 
     def validate_data(self, data):
-        if not data:
+        if data is None:
             raise ManagerValidationError(
                 "The data argument must be passed for insert or update."
             )
@@ -92,6 +98,10 @@ class Manager:
         for field_name, field in self.model.get_related_fields().items():
             if field.name in row:
                 row[field_name] = row[field.name]
+            elif hasattr(field, "_through_model"):
+                relation_manager = field.get_relation_wrapper(field_name, None)
+                relation_manager.id = row.get("id")
+                row[field_name] = relation_manager
         return row
 
     def __iter__(self):
@@ -101,7 +111,7 @@ class Manager:
     def all_data(self):
         obj = self._base_filtering()
 
-        if self._is_none:
+        if self._is_none or self.model.get_field_names() == ["id"]:
             return []
 
         if obj._cache is not None:
@@ -141,11 +151,25 @@ class Manager:
 
 class RelationManager(Manager):
     def __init__(self, model, lookup_field):
+        super().__init__(model)
         self.lookup_field = lookup_field
         self.id = None
-        super().__init__(model)
 
     def _base_filtering(self):
+        if self.id is None:
+            return self.none()
+
+        return self.where(**{self.lookup_field: self.id})
+
+
+class ManyToManyRelationManager(Manager):
+    def __init__(self, model):
+        super().__init__(model)
+        self.lookup_field = None
+        self.id = None
+
+    def _base_filtering(self):
+        print(self.id)
         if self.id is None:
             return self.none()
 

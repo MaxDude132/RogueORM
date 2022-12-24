@@ -43,6 +43,9 @@ class QueryBuilder(BaseQueryBuilder):
     def _build_insert(self, data):
         assert not self.where_statements, "No where can be passed to an insert backend."
 
+        if not data:
+            return f"{self.INSERT} {self.table_name} DEFAULT {self.VALUES}", ()
+
         self._validate_data(data)
         headers, formatted_data = self._format_input_data(data)
 

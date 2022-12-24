@@ -27,6 +27,9 @@ class ModelTestCase(TestCase):
             "FOREIGN KEY(test_model_id) REFERENCES test_model (id), "
             "FOREIGN KEY(other_test_model_id) REFERENCES test_model (id));"
         )
+        self.client.execute(
+            "CREATE TABLE m2m_defined_model (id integer PRIMARY KEY autoincrement);"
+        )
 
     def test_wrong_model_definitions(self):
         # Field needs to be passed a Python type
@@ -140,6 +143,30 @@ class ModelTestCase(TestCase):
         self.assertEqual(test_model.id, defined_model.test_model.id)
         self.assertEqual(defined_model.id, test_model.defined_model.id)
 
+    def test_model_with_many_to_many_relationship(self):
+        # 2 related fields with the same name
+        with self.assertRaises(FieldValidationError):
+
+            class ErrorM2MDefinedModel(Model):
+                test_models: Field[TestModel](many_to_many=True)
+                other_test_models: Field[TestModel | None](many_to_many=True)
+
+        class M2mDefinedModel(Model):
+            test_models: Field[TestModel](many_to_many=True)
+            other_test_models: Field[TestModel | None](
+                reverse_name="many_reverse_name", many_to_many=True  # noqa: F821
+            )
+
+        test_model = TestModel(test=5)
+        test_model.save()
+        defined_model = M2mDefinedModel(test_models=[test_model])
+        defined_model.save()
+
+        defined_model = M2mDefinedModel.get(id=defined_model.id)
+
+        print(defined_model)
+        print(defined_model.test_models)
+
     def test_model_instantiations(self):
         class DefinedModel(Model):
             field_with_default: Field[int] = 20
@@ -209,3 +236,4 @@ class ModelTestCase(TestCase):
         self.client.execute("DROP TABLE test_model;")
         self.client.execute("DROP TABLE defined_model;")
         self.client.execute("DROP TABLE error_defined_model;")
+        self.client.execute("DROP TABLE m2m_defined_model;")
