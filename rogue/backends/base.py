@@ -72,7 +72,9 @@ class BaseQueryBuilder(metaclass=ABCMeta):
 
         self.where_statements = []
 
-        self.table_name = self.model.table_name
+    @property
+    def table_name(self):
+        return self.model.table_name
 
     @property
     def fields(self):

@@ -1,3 +1,3 @@
-from .base import Manager, RelationManager, ManyToManyRelationManager
+from .base import Manager, RelationManager, ManyToManyManager
 
-__all__ = ["Manager", "RelationManager", "ManyToManyRelationManager"]
+__all__ = ["Manager", "RelationManager", "ManyToManyManager"]

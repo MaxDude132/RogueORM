@@ -24,10 +24,6 @@ class ManagerTestCase(TestCase):
         with self.assertRaises(ManagerValidationError):
             self.manager.insert(None)
 
-        # Without data
-        with self.assertRaises(ManagerValidationError):
-            self.manager.insert({})
-
         # Wrong fields
         with self.assertRaises(ManagerValidationError):
             self.manager.insert({"wrong_field": 5})

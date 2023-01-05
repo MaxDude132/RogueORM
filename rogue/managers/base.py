@@ -1,3 +1,5 @@
+from collections.abc import Iterable
+
 from rogue.backends.sqlite.client import DatabaseClient
 from rogue.backends.sqlite.query import QueryBuilder
 
@@ -90,7 +92,8 @@ class Manager:
         models = []
         for row in data:
             row = self._build_relations(row)
-            models.append(self.model(**row))
+            model_class = self.get_returned_model_class()
+            models.append(model_class(**row))
 
         return models
 
@@ -103,6 +106,9 @@ class Manager:
                 relation_manager.id = row.get("id")
                 row[field_name] = relation_manager
         return row
+
+    def get_returned_model_class(self):
+        return self.model
 
     def __iter__(self):
         return iter(self.all_models)
@@ -162,15 +168,38 @@ class RelationManager(Manager):
         return self.where(**{self.lookup_field: self.id})
 
 
-class ManyToManyRelationManager(Manager):
-    def __init__(self, model):
-        super().__init__(model)
+class ManyToManyManager(Manager):
+    def __init__(self, through_model, relation_model):
+        super().__init__(through_model)
         self.lookup_field = None
         self.id = None
 
+        self.relation_model = relation_model
+
     def _base_filtering(self):
-        print(self.id)
         if self.id is None:
             return self.none()
 
-        return self.where(**{self.lookup_field: self.id})
+        self._query.model = self.relation_model
+        return self.where(id=self.id)
+
+    def add(self, data):
+        # TODO: Add a way to insert many with one query
+        if isinstance(data, Iterable):
+            all_data = []
+            for row in data:
+                insert_data = self._get_ids_from_row(row)
+                all_data.append(self.insert(insert_data))
+            return all_data
+
+        insert_data = self._get_ids_from_row(data)
+        return self.insert(insert_data)
+
+    def _get_ids_from_row(self, row):
+        if not row:
+            return {}
+
+        return {row.table_name + "_id": row.id, self.lookup_field: self.id}
+
+    def get_returned_model_class(self):
+        return self.relation_model

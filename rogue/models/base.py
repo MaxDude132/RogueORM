@@ -2,7 +2,7 @@ from copy import copy
 from typing import Any
 import re
 
-from rogue.managers import Manager, RelationManager, ManyToManyRelationManager
+from rogue.managers import Manager, RelationManager, ManyToManyManager
 
 from .fields import (
     BaseField,
@@ -70,9 +70,9 @@ class Model(metaclass=ModelMeta):
                 setattr(self, field.name, value)
 
             foreign_relations = field.get_relation_wrapper(field.name, value)
-            if isinstance(foreign_relations, ManyToManyRelationManager):
+            if isinstance(foreign_relations, ManyToManyManager):
                 foreign_relations.id = id_
-                foreign_relations.lookup_field = field_name + "_id"
+                foreign_relations.lookup_field = self.table_name + "_id"
             if foreign_relations is not None:
                 self._foreign_relations[field_name] = foreign_relations
 
@@ -87,6 +87,9 @@ class Model(metaclass=ModelMeta):
 
     def _set_related_managers_id(self, id):
         for manager in self.get_related_managers().values():
+            manager.id = id
+
+        for manager in self.get_many_managers().values():
             manager.id = id
 
     @classmethod
@@ -107,6 +110,13 @@ class Model(metaclass=ModelMeta):
             self._set_related_managers_id(self.id)
         else:
             manager.update(self.id, self.get_changed_fields())
+
+        if created:
+            for field_name, field in self.get_many_managers().items():
+                if field_name in self.__dict__:
+                    value = self.__dict__.get(field_name)
+                    if value is not None:
+                        field.add(value)
 
         if not created:
             for field_name, value in field_values.items():
@@ -184,6 +194,13 @@ class Model(metaclass=ModelMeta):
             if isinstance(field, (RelationManager, OneToOneWrapper))
         }
 
+    def get_many_managers(self):
+        return {
+            field_name: field
+            for field_name, field in self.__dict__.get("_foreign_relations", {}).items()
+            if isinstance(field, ManyToManyManager)
+        }
+
     @property
     def field_values(self):
         return {
@@ -221,6 +238,9 @@ class Model(metaclass=ModelMeta):
             return attribute()
 
         return attribute
+
+    def __eq__(self, obj: object) -> bool:
+        return isinstance(obj, self.__class__) and obj.id == self.id
 
     def __repr__(self) -> str:
         fields = [

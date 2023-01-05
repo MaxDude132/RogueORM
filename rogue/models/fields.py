@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 from typing import get_args
 
-from rogue.managers import RelationManager, ManyToManyRelationManager
+from rogue.managers import RelationManager, ManyToManyManager
 
 from .errors import FieldValidationError
 from .utils import get_through_model
@@ -225,7 +225,7 @@ class ManyToManyField(ForeignKeyField):
         # kwargs["nullable"] = True
         super().__init__(parent, field_name, foreign_model_class, **kwargs)
 
-        reverse_relation_name = kwargs.get(
+        self.reverse_name = kwargs.get(
             "reverse_name", self._get_default_reverse_relation_name()
         )
 
@@ -235,14 +235,14 @@ class ManyToManyField(ForeignKeyField):
                 parent,
                 foreign_model_class,
                 self._get_field_name(),
-                reverse_relation_name,
+                self.reverse_name,
                 nullable,
             ),
         )
 
         self._mapping = {
-            self._get_field_name(): reverse_relation_name,
-            reverse_relation_name: self._get_field_name(),
+            self._get_field_name(): self.reverse_name,
+            self.reverse_name: self._get_field_name(),
         }
 
     def _set_reverse_relation(self, reverse_relation_name):
@@ -252,7 +252,7 @@ class ManyToManyField(ForeignKeyField):
         return self._model_field_name
 
     def get_relation_wrapper(self, field_name, value):
-        return ManyToManyRelationManager(self._through_model)
+        return ManyToManyManager(self._through_model, self._foreign_model)
 
     def clean_value(self, value):
         if value is None:

@@ -144,6 +144,13 @@ class ModelTestCase(TestCase):
         self.assertEqual(defined_model.id, test_model.defined_model.id)
 
     def test_model_with_many_to_many_relationship(self):
+        self.client.execute(
+            "CREATE TABLE m2m_defined_model_test_models_test_model_m2_m_defined_model_set_through "
+            "(id integer PRIMARY KEY autoincrement, "
+            "m2m_defined_model_id integer NOT NULL, test_model_id integer, "
+            "FOREIGN KEY(m2m_defined_model_id) REFERENCES m2m_defined_model (id), "
+            "FOREIGN KEY(test_model_id) REFERENCES test_model (id));"
+        )
         # 2 related fields with the same name
         with self.assertRaises(FieldValidationError):
 
@@ -164,8 +171,12 @@ class ModelTestCase(TestCase):
 
         defined_model = M2mDefinedModel.get(id=defined_model.id)
 
-        print(defined_model)
-        print(defined_model.test_models)
+        self.assertEqual(len(defined_model.test_models.all()), 1)
+        self.assertEqual(test_model, defined_model.test_models.first())
+
+        self.client.execute(
+            "DROP TABLE m2m_defined_model_test_models_test_model_m2_m_defined_model_set_through"
+        )
 
     def test_model_instantiations(self):
         class DefinedModel(Model):
