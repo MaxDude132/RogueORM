@@ -1,3 +1,3 @@
-from .base import makemigrations
+from .base import makemigrations, migrate
 
-__all__ = ["makemigrations"]
+__all__ = ["makemigrations", "migrate"]
