@@ -6,3 +6,5 @@
 #
 python-dotenv==1.0.0
     # via RogueORM (pyproject.toml)
+sqlparse==0.4.3
+    # via RogueORM (pyproject.toml)

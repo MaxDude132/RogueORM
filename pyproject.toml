@@ -4,7 +4,7 @@ build-backend = 'setuptools.build_meta'
 
 [project]
 name = 'RogueORM'
-version = '0.0.1'
+version = '0.0.2'
 description = 'An ORM that strives to eradicate N+1 issues.'
 readme = 'README.md'
 authors = [{name = 'Maxime Toussaint', email = 'm.toussaint@mail.com'}]
@@ -15,7 +15,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 keywords = ["orm", "database"]
-dependencies = ["python-dotenv"]
+dependencies = ["python-dotenv", "sqlparse"]
 requires-python = ">=3.10"
 
 [project.optional-dependencies]
