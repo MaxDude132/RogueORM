@@ -4,6 +4,7 @@ from rogue.models import Model, Field
 from rogue.backends.sqlite.client import DatabaseClient
 from rogue.backends.errors import InvalidComparisonError
 from rogue.managers.errors import ManagerValidationError
+from rogue.settings import settings
 
 
 class TestManager(Model):
@@ -12,7 +13,7 @@ class TestManager(Model):
 
 class ManagerTestCase(TestCase):
     def setUp(self):
-        self.client = DatabaseClient("default.sqlite")
+        self.client = DatabaseClient(settings.DATABASE_NAME)
         self.client.execute(
             "CREATE TABLE test_manager (id integer PRIMARY KEY autoincrement, test integer);"
         )

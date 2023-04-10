@@ -3,11 +3,12 @@ from unittest import TestCase
 from sqlite3 import Connection as SqliteConnection, Cursor as SqliteCursor
 
 from rogue.backends.sqlite.client import DatabaseClient
+from rogue.settings import settings
 
 
 class DatabaseClientTestCase(TestCase):
     def setUp(self):
-        self.database_client = DatabaseClient("test_database.sqlite")
+        self.database_client = DatabaseClient()
 
     def test_connection(self):
         connection = self.database_client.get_connection()
@@ -29,4 +30,4 @@ class DatabaseClientTestCase(TestCase):
 
     def tearDown(self) -> None:
         self.database_client.close()
-        os.remove("test_database.sqlite")
+        os.remove(settings.DATABASE_NAME)

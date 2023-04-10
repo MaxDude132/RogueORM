@@ -3,6 +3,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
+from rogue.settings import settings
+
 from .errors import OperationalError, InvalidComparisonError
 
 
@@ -10,13 +12,13 @@ class BaseDatabaseClient(metaclass=ABCMeta):
     _instances = {}
     _db_name = None
 
-    def __new__(cls, db_name):
+    def __new__(cls, db_name=settings.DATABASE_NAME):
         if db_name not in cls._instances:
             cls._instances[db_name] = super().__new__(cls)
 
         return cls._instances[db_name]
 
-    def __init__(self, db_name):
+    def __init__(self, db_name=settings.DATABASE_NAME):
         self._db_name = db_name
 
         self._connection = None

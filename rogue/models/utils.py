@@ -1,3 +1,8 @@
+from importlib import import_module
+from inspect import ismodule
+from rogue.settings import settings
+
+
 def get_through_model(
     model_has_definition,
     model_inherits_field,
@@ -33,3 +38,30 @@ def get_through_model(
 
 def _get_field_name(model):
     return model.table_name
+
+
+def get_all_models():
+    # Likely to have a circular import in the future, so we import directly in the function
+    from .base import Model
+
+    _import_all_models()
+
+    subclasses = _get_subclasses(Model)
+    return subclasses
+
+
+def _import_all_models():
+    # Models have to be imported first to be in the subclasses list
+    models_folder = settings.MODELS_FOLDER
+    import_module(models_folder)
+
+
+def _get_subclasses(cls):
+    subclasses = []
+    for subclass in cls.__subclasses__():
+        if subclass.__subclasses__():
+            subclasses.extend(_get_subclasses(subclass))
+        else:
+            subclasses.append(subclass)
+
+    return subclasses

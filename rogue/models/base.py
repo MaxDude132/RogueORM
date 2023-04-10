@@ -3,6 +3,7 @@ from typing import Any
 import re
 
 from rogue.managers import Manager, RelationManager, ManyToManyManager
+from rogue.settings import settings
 
 from .fields import (
     BaseField,
@@ -51,7 +52,7 @@ class ModelMeta(type):
 
 
 class Model(metaclass=ModelMeta):
-    db_name = "default.sqlite"
+    db_name = settings.DATABASE_NAME
 
     def __init__(self, **kwargs):
         self._foreign_relations = {}
