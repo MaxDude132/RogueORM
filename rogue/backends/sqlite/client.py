@@ -1,3 +1,5 @@
+from rogue.settings import settings
+
 from ..base import BaseDatabaseClient
 import sqlite3
 
