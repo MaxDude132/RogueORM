@@ -171,3 +171,12 @@ class BaseQueryBuilder(metaclass=ABCMeta):
 
 class BaseDatabaseSchemaEditor(metaclass=ABCMeta):
     pass
+
+
+class BaseDatabaseSchemaReader(metaclass=ABCMeta):
+    def __init__(self, db_client):
+        self._db_client = db_client
+
+    @abstractmethod
+    def get_tables(self):  # pragma: no cover
+        pass
