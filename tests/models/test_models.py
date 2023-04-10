@@ -1,4 +1,4 @@
-from unittest import TestCase, skip
+from unittest import TestCase
 
 from rogue.models import Model, Field
 from rogue.models.errors import FieldValidationError
@@ -60,9 +60,7 @@ class ModelTestCase(TestCase):
     def test_model_definitions(self):
         class DefinedModel(Model):
             string_field: Field[str](max_char=10)
-            field_with_tuple_len_1: Field[
-                str,
-            ](max_char=10)
+            field_with_tuple_len_1: Field[str,](max_char=10)
             nullable_field: Field[int | None]
             field_with_default: Field[int] = 20
 

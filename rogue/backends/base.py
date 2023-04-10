@@ -18,7 +18,7 @@ class BaseDatabaseClient(metaclass=ABCMeta):
 
         return cls._instances[db_name]
 
-    def __init__(self, db_name):
+    def __init__(self, db_name=settings.DATABASE_NAME):
         self._db_name = db_name
 
         self._connection = None

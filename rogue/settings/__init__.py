@@ -9,7 +9,7 @@ load_dotenv()
 
 
 SETTINGS_FILE_VAR_NAME = "ROGUE_ORM_SETTINGS"
-DEFAULT_SETTINGS_FILE_NAME = "settings.py"
+DEFAULT_SETTINGS_FILE_NAME = "settings"
 
 
 def _get_settings():
