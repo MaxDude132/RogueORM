@@ -14,7 +14,7 @@ _Note_: This package is currently in development and is not production ready yet
  3. Add support for basic SQLite operation: SELECT, INSERT, UPDATE, DELETE. Status: Done
  4. Add support for Foreign Keys. Status: Done
  5. Add support for ManyToMany relationships using a joining table. Status: Done (Testing has to be improved)
- 6. Add a migration system. Status: Started, PR #11
+ 6. Add a migration system. Status: Done (Testing has to be improved)
  7. Add support for relation lookup using a similar method to Django's, with __ being put between field names. Status: Not started
  8. Add support for JOIN, UNION and GROUP BY, with an interface to build them. Status: Not started
  9. Add logic for batch fetching in loops. Status: Not started
