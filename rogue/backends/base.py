@@ -38,9 +38,11 @@ class BaseDatabaseClient(metaclass=ABCMeta):
 
 @dataclass
 class WhereStatement:
+    table_name: str
     field: str
     comparison: str
     value: Any
+    relation_descriptor: Any
 
 
 class BaseQueryBuilder(metaclass=ABCMeta):
@@ -53,6 +55,8 @@ class BaseQueryBuilder(metaclass=ABCMeta):
     WHERE = "WHERE"
     AND = "AND"
     VALUES = "VALUES"
+    INNER_JOIN = "INNER JOIN"
+    ON = "ON"
 
     EQUAL = "equal"
     IN = "in"
@@ -82,7 +86,16 @@ class BaseQueryBuilder(metaclass=ABCMeta):
     def fields(self):
         return self.model.get_fields()
 
-    def where(self, field, comparison, value, not_=False):
+    def where(
+        self,
+        *,
+        table_name,
+        field,
+        comparison,
+        value,
+        not_: bool = False,
+        relation_descriptor=None,
+    ):
         comparison_mapping = (
             self.NOT_COMPARISON_MAPPING if not_ else self.COMPARISON_MAPPING
         )
@@ -98,7 +111,13 @@ class BaseQueryBuilder(metaclass=ABCMeta):
             )
 
         self.where_statements.append(
-            WhereStatement(field=field, comparison=comparison, value=value)
+            WhereStatement(
+                table_name=table_name,
+                field=field,
+                comparison=comparison,
+                value=value,
+                relation_descriptor=relation_descriptor,
+            )
         )
         return self
 

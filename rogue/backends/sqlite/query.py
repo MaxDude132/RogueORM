@@ -15,7 +15,12 @@ class QueryBuilder(BaseQueryBuilder):
         self.client.execute(*self._build_insert(data))
         data = (
             self.__class__(self.client, self.model)
-            .where("id", self.EQUAL, "(SELECT last_insert_rowid())")
+            .where(
+                table_name=self.model.table_name,
+                field="id",
+                comparison=self.EQUAL,
+                value="(SELECT last_insert_rowid())",
+            )
             .fetch_one()
         )
         return data
@@ -24,7 +29,12 @@ class QueryBuilder(BaseQueryBuilder):
         self.client.execute(*self._build_update(pk, data))
         data = (
             self.__class__(self.client, self.model)
-            .where("id", self.EQUAL, pk)
+            .where(
+                table_name=self.model.table_name,
+                field="id",
+                comparison=self.EQUAL,
+                value=pk,
+            )
             .fetch_one()
         )
         return data
@@ -32,8 +42,16 @@ class QueryBuilder(BaseQueryBuilder):
     def delete(self):
         self.client.execute(*self._build_delete())
 
+    def _format_fields(self):
+        fields = []
+
+        for field in self.fields:
+            fields.append(".".join((self.table_name, field)))
+
+        return fields
+
     def _build_select(self):
-        query = f"{self.SELECT} {', '.join(self.fields.keys())} {self.FROM} {self.table_name}"
+        query = f"{self.SELECT} {', '.join(self._format_fields())} {self.FROM} {self.table_name}"
 
         if self.where_statements:
             query = f"{query} {self._build_where()}"
@@ -75,11 +93,21 @@ class QueryBuilder(BaseQueryBuilder):
         return query, ()
 
     def _build_where(self):
-        query = f"{self.WHERE} "
-        query += f" {self.AND} ".join(
-            [
-                f"{where.field} {where.comparison} {where.value}"
-                for where in self.where_statements
-            ]
-        )
-        return query
+        query = ""
+
+        wheres = []
+        joins = []
+        for where in self.where_statements:
+            if where.relation_descriptor:
+                for relation in where.relation_descriptor:
+                    joins.append(
+                        f"{self.INNER_JOIN} {relation['right_table_name']} {self.ON} "
+                        f"{relation['left_table_name']}.{relation['left_field_name']} = "
+                        f"{relation['right_table_name']}.{relation['right_field_name']}"
+                    )
+
+            wheres.append(
+                f"{where.table_name}.{where.field} {where.comparison} {where.value}"
+            )
+
+        return f"{query} {' '.join(joins)} {self.WHERE} {f' {self.AND} '.join(wheres)}"

@@ -5,6 +5,7 @@ from rogue.backends.sqlite.query import QueryBuilder
 from rogue.models.query import Lookup
 
 from .errors import ManagerValidationError
+from .query import RelationDescriptor
 
 
 LOOKUP_SEPARATOR = "__"
@@ -43,8 +44,18 @@ class Manager:
             # TODO: Filter the data instead of forcing a refetch
             self._cache = None
             for lookup in where:
+                relation_descriptor = (
+                    RelationDescriptor(*lookup.tracking)
+                    if len(lookup.tracking) > 1
+                    else None
+                )
                 self._query = self._query.where(
-                    lookup.parent.name, lookup.comparison, lookup.value, not_
+                    table_name=lookup.parent._parent.table_name,
+                    field=lookup.parent.name,
+                    comparison=lookup.comparison,
+                    value=lookup.value,
+                    not_=not_,
+                    relation_descriptor=relation_descriptor,
                 )
         return self
 
@@ -98,10 +109,12 @@ class Manager:
         prev_obj = None
         obj = None
 
+        tracking = []
         for item in lookup.split(LOOKUP_SEPARATOR):
             try:
                 prev_obj = obj
                 obj = available_lookups[item]
+                tracking.append(obj)
             except KeyError:
                 raise LookupError(
                     f"{item} is not a valid lookup. Options are {', '.join(available_lookups)}."
@@ -113,9 +126,9 @@ class Manager:
             available_lookups = obj.available_lookups()
 
         if isinstance(obj, type) and issubclass(obj, Lookup):
-            return obj(prev_obj, value)
+            return obj(prev_obj, value, tracking)
 
-        return Lookup(obj, value)
+        return Lookup(obj, value, tracking)
 
     def _build_models(self, data):
         models = []

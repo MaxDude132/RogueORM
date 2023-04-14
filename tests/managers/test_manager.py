@@ -85,7 +85,6 @@ class ManagerTestCase(TestCase):
         manager = TestModel.where(test_manager__test=2)
         for model in manager:
             self.assertEqual(model.test_manager.test, 2)
-        raise Exception(manager)
 
     def test_none(self):
         self.assertFalse(TestManager.none())
