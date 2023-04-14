@@ -54,10 +54,10 @@ class ModelMeta(type):
 class Model(metaclass=ModelMeta):
     db_name = settings.DATABASE_NAME
 
-    def __init__(self, **kwargs):
-        self._foreign_relations = {}
+    def __init__(self, id_=None, parent=None, **kwargs):
+        self._parent = parent
 
-        id_ = kwargs.get("id")
+        self._foreign_relations = {}
 
         self._set_related_managers()
         self._set_related_managers_id(id_)
@@ -167,6 +167,10 @@ class Model(metaclass=ModelMeta):
             for field_name, field in cls.__dict__.items()
             if isinstance(field, BaseField)
         }
+
+    @classmethod
+    def available_lookups(cls):
+        return cls.get_model_fields()
 
     @classmethod
     def get_field_names(cls):

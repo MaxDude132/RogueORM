@@ -2,7 +2,6 @@ from unittest import TestCase
 
 from rogue.models import Model, Field
 from rogue.backends.sqlite.client import DatabaseClient
-from rogue.backends.errors import InvalidComparisonError
 from rogue.managers.errors import ManagerValidationError
 from rogue.settings import settings
 
@@ -11,11 +10,18 @@ class TestManager(Model):
     test: Field[int | None]
 
 
+class TestModel(Model):
+    test_manager: Field[TestManager]
+
+
 class ManagerTestCase(TestCase):
     def setUp(self):
         self.client = DatabaseClient(settings.DATABASE_NAME)
         self.client.execute(
             "CREATE TABLE test_manager (id integer PRIMARY KEY autoincrement, test integer);"
+        )
+        self.client.execute(
+            "CREATE TABLE test_model (id integer PRIMARY KEY autoincrement, test_manager_id integer);"
         )
         self.test_model = TestManager()
         self.manager = self.test_model._get_new_manager()
@@ -54,8 +60,11 @@ class ManagerTestCase(TestCase):
 
     def test_comparison_operators(self):
         self.client.execute("INSERT INTO test_manager (test) VALUES (1), (2), (3);")
+        self.client.execute(
+            "INSERT INTO test_model (test_manager_id) VALUES (1), (2), (3);"
+        )
 
-        with self.assertRaises(InvalidComparisonError):
+        with self.assertRaises(LookupError):
             TestManager.where(test__wrong_operator=2)
 
         manager = TestManager.where(test=2)
@@ -73,8 +82,14 @@ class ManagerTestCase(TestCase):
         manager = TestManager.where_not(test__in=test_values)
         self.assertEqual(manager.first().test, 2)
 
+        manager = TestModel.where(test_manager__test=2)
+        for model in manager:
+            self.assertEqual(model.test_manager.test, 2)
+        raise Exception(manager)
+
     def test_none(self):
         self.assertFalse(TestManager.none())
 
     def tearDown(self) -> None:
         self.client.execute("DROP TABLE test_manager;")
+        self.client.execute("DROP TABLE test_model;")

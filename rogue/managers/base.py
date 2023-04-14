@@ -2,6 +2,7 @@ from collections.abc import Iterable
 
 from rogue.backends.sqlite.client import DatabaseClient
 from rogue.backends.sqlite.query import QueryBuilder
+from rogue.models.query import Lookup
 
 from .errors import ManagerValidationError
 
@@ -10,13 +11,16 @@ LOOKUP_SEPARATOR = "__"
 
 
 class Manager:
-    def __init__(self, model):
-        self.model = model
+    def __init__(self, model_class, parent=None):
+        self.model_class = model_class
+        self._parent = None
 
-        self._client = DatabaseClient(self.model.db_name)
-        self._query = QueryBuilder(self._client, model)
+        self._client = DatabaseClient(self.model_class.db_name)
+        self._query = QueryBuilder(self._client, self.model_class)
         self._cache = None
         self._is_none = False
+
+        self._joins = {}
 
     def first(self):
         if self._is_none:
@@ -38,8 +42,10 @@ class Manager:
         if where:
             # TODO: Filter the data instead of forcing a refetch
             self._cache = None
-            for lookup, comparison, value in where:
-                self._query = self._query.where(lookup, comparison, value, not_)
+            for lookup in where:
+                self._query = self._query.where(
+                    lookup.parent.name, lookup.comparison, lookup.value, not_
+                )
         return self
 
     def where_not(self, **where):
@@ -66,39 +72,62 @@ class Manager:
                 "The data argument must be passed for insert or update."
             )
 
-        model_fields = self.model.get_fields()
+        model_fields = self.model_class.get_fields()
 
         for field_name in data:
-            if field_name not in self.model.get_field_names():
+            if field_name not in self.model_class.get_field_names():
                 raise ManagerValidationError(
-                    f"{self.model.table_name} has no field named {field_name}."
+                    f"{self.model_class.table_name} has no field named {field_name}."
                 )
             model_fields[field_name].validate(data[field_name])
+
+    def available_lookups(self):
+        return self.model_class.available_lookups()
 
     def _deconstruct_where(self, where):
         formatted_where = []
 
-        for lookup, value in where.items():
-            comparison = ""
-
-            if LOOKUP_SEPARATOR in lookup:
-                lookup, comparison = lookup.split(LOOKUP_SEPARATOR)
-
-            formatted_where.append((lookup, comparison, value))
+        for lookup_str, value in where.items():
+            lookup = self._get_lookup_object(lookup_str, value)
+            formatted_where.append(lookup)
 
         return formatted_where
+
+    def _get_lookup_object(self, lookup: str, value):
+        available_lookups = self.available_lookups()
+        prev_obj = None
+        obj = None
+
+        for item in lookup.split(LOOKUP_SEPARATOR):
+            try:
+                prev_obj = obj
+                obj = available_lookups[item]
+            except KeyError:
+                raise LookupError(
+                    f"{item} is not a valid lookup. Options are {', '.join(available_lookups)}."
+                )
+
+            if not hasattr(obj, "available_lookups"):
+                break
+
+            available_lookups = obj.available_lookups()
+
+        if isinstance(obj, type) and issubclass(obj, Lookup):
+            return obj(prev_obj, value)
+
+        return Lookup(obj, value)
 
     def _build_models(self, data):
         models = []
         for row in data:
             row = self._build_relations(row)
             model_class = self.get_returned_model_class()
-            models.append(model_class(**row))
+            models.append(model_class(parent=self, **row))
 
         return models
 
     def _build_relations(self, row):
-        for field_name, field in self.model.get_related_fields().items():
+        for field_name, field in self.model_class.get_related_fields().items():
             if field.name in row:
                 row[field_name] = row[field.name]
             elif hasattr(field, "_through_model"):
@@ -108,7 +137,7 @@ class Manager:
         return row
 
     def get_returned_model_class(self):
-        return self.model
+        return self.model_class
 
     def __iter__(self):
         return iter(self.all_models)
@@ -117,7 +146,7 @@ class Manager:
     def all_data(self):
         obj = self._base_filtering()
 
-        if self._is_none or self.model.get_field_names() == ["id"]:
+        if self._is_none or self.model_class.get_field_names() == ["id"]:
             return []
 
         if obj._cache is not None:
@@ -142,7 +171,7 @@ class Manager:
         return len(list(self.__iter__()))
 
     def __contains__(self, other):
-        if not isinstance(other, self.model):
+        if not isinstance(other, self.model_class):
             return False
 
         for data in self.all_data:
@@ -156,8 +185,8 @@ class Manager:
 
 
 class RelationManager(Manager):
-    def __init__(self, model, lookup_field):
-        super().__init__(model)
+    def __init__(self, lookup_field, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.lookup_field = lookup_field
         self.id = None
 
