@@ -11,6 +11,7 @@ def makemigrations(db_name=None):
     migration_name = migrator.create_migration()
 
     print(f"Migration {migration_name} created!")
+    return migration_name
 
 
 def migrate(filename, db_name=None):
