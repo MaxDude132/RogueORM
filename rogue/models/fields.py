@@ -2,7 +2,7 @@ from collections.abc import Iterable
 from typing import get_args
 
 from rogue.managers import RelationManager, ManyToManyManager
-from rogue.models.query import InLookup, Lookup
+from rogue.query import InLookup, Lookup
 
 from .errors import FieldValidationError
 from .utils import get_through_model

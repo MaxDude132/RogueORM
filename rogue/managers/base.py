@@ -2,10 +2,9 @@ from collections.abc import Iterable
 
 from rogue.backends.sqlite.client import DatabaseClient
 from rogue.backends.sqlite.query import QueryBuilder
-from rogue.models.query import Lookup
+from rogue.query import Lookup, RelationDescriptor
 
 from .errors import ManagerValidationError
-from .query import RelationDescriptor
 
 
 LOOKUP_SEPARATOR = "__"
