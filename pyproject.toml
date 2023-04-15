@@ -4,7 +4,7 @@ build-backend = 'setuptools.build_meta'
 
 [project]
 name = 'RogueORM'
-version = '0.0.3'
+version = '0.1.0'
 description = 'An ORM that strives to eradicate N+1 issues.'
 readme = 'README.md'
 authors = [{name = 'Maxime Toussaint', email = 'm.toussaint@mail.com'}]
