@@ -2,6 +2,7 @@ from collections.abc import Iterable
 from typing import get_args
 
 from rogue.managers import RelationManager, ManyToManyManager
+from rogue.query import InLookup, Lookup
 
 from .errors import FieldValidationError
 from .utils import get_through_model
@@ -101,6 +102,12 @@ class BaseField:
     def get_relation_wrapper(self, field_name, value):
         return
 
+    def available_lookups(self):
+        return {"equal": Lookup, "in": InLookup}
+
+    def get_query_table_name(self):
+        return self._parent.table_name
+
 
 class StringField(BaseField):
     PYTHON_TYPE = str
@@ -178,7 +185,7 @@ class ForeignKeyField(RelationField):
         return self._parent.table_name + "_set"
 
     def _get_reverse_relation(self, field_name):
-        return RelationManager(self._parent, field_name)
+        return RelationManager(field_name, self._parent, self._parent)
 
     def clean_value(self, value):
         if value is not None and hasattr(value, "id") and hasattr(value, "save"):
@@ -190,6 +197,11 @@ class ForeignKeyField(RelationField):
 
     def get_relation_wrapper(self, field_name, value):
         return ForeignKeyWrapper(self._foreign_model, value)
+
+    def available_lookups(self):
+        model_lookups = super().available_lookups()
+
+        return {**model_lookups, **self._foreign_model.available_lookups()}
 
 
 class OneToOneWrapper(BaseWrapper):
@@ -262,6 +274,9 @@ class ManyToManyField(ForeignKeyField):
             value = [value]
 
         return value
+
+    def get_query_table_name(self):
+        return self._foreign_model.table_name
 
 
 FIELD_MAPPING = {str: StringField, int: IntegerField, float: FloatField}
