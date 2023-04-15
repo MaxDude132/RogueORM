@@ -93,8 +93,6 @@ class QueryBuilder(BaseQueryBuilder):
         return query, ()
 
     def _build_where(self):
-        query = ""
-
         wheres = []
         joins = []
         for where in self.where_statements:
@@ -110,4 +108,4 @@ class QueryBuilder(BaseQueryBuilder):
                 f"{where.table_name}.{where.field} {where.comparison} {where.value}"
             )
 
-        return f"{query} {' '.join(joins)} {self.WHERE} {f' {self.AND} '.join(wheres)}"
+        return f"{' '.join(joins)} {self.WHERE} {f' {self.AND} '.join(wheres)}"

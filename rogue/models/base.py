@@ -170,7 +170,15 @@ class Model(metaclass=ModelMeta):
 
     @classmethod
     def available_lookups(cls):
-        return cls.get_model_fields()
+        available_lookups = {}
+
+        for field_name, field in cls.get_model_fields().items():
+            available_lookups[field_name] = field
+
+            if field.name != field_name:
+                available_lookups[field.name] = field
+
+        return available_lookups
 
     @classmethod
     def get_field_names(cls):

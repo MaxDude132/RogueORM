@@ -105,6 +105,9 @@ class BaseField:
     def available_lookups(self):
         return {"equal": Lookup, "in": InLookup}
 
+    def get_query_table_name(self):
+        return self._parent.table_name
+
 
 class StringField(BaseField):
     PYTHON_TYPE = str
@@ -271,6 +274,9 @@ class ManyToManyField(ForeignKeyField):
             value = [value]
 
         return value
+
+    def get_query_table_name(self):
+        return self._foreign_model.table_name
 
 
 FIELD_MAPPING = {str: StringField, int: IntegerField, float: FloatField}

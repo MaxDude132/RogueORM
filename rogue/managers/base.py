@@ -38,7 +38,7 @@ class Manager:
     def all(self):
         return self
 
-    def where(self, not_=False, **where):
+    def where(self, not_=False, table_name=None, **where):
         where = self._deconstruct_where(where)
         if where:
             # TODO: Filter the data instead of forcing a refetch
@@ -50,7 +50,7 @@ class Manager:
                     else None
                 )
                 self._query = self._query.where(
-                    table_name=lookup.parent._parent.table_name,
+                    table_name=table_name or lookup.parent.get_query_table_name(),
                     field=lookup.parent.name,
                     comparison=lookup.comparison,
                     value=lookup.value,
@@ -135,7 +135,7 @@ class Manager:
         for row in data:
             row = self._build_relations(row)
             model_class = self.get_returned_model_class()
-            models.append(model_class(parent=self, **row))
+            models.append(model_class(id_=row.get("id"), parent=self, **row))
 
         return models
 
@@ -151,6 +151,9 @@ class Manager:
 
     def get_returned_model_class(self):
         return self.model_class
+
+    def get_query_table_name(self):
+        return self.model_class.table_name
 
     def __iter__(self):
         return iter(self.all_models)
@@ -223,7 +226,7 @@ class ManyToManyManager(Manager):
             return self.none()
 
         self._query.model = self.relation_model
-        return self.where(id=self.id)
+        return self.where(table_name=self.get_query_table_name(), id=self.id)
 
     def add(self, data):
         # TODO: Add a way to insert many with one query
@@ -245,3 +248,6 @@ class ManyToManyManager(Manager):
 
     def get_returned_model_class(self):
         return self.relation_model
+
+    def get_query_table_name(self):
+        return self.relation_model.table_name
